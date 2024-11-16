@@ -37,7 +37,7 @@ def task():
         raise_error,
     ]
     trigger_function: List[Callable] = random.choices(
-        trigger_functions, weights=[2, 1, 100]
+        trigger_functions, weights=[1, 1, 1]
     )
     trigger_function: Callable = trigger_function[0]
     trigger_function()
