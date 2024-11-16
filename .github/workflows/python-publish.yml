@@ -47,7 +47,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    if: startsWith(github.ref, 'ref/tags/') # only publish to PyPI on tag pushes
+    if: startsWith(github.ref, 'refs/tags/') # only publish to PyPI on tag pushes
     needs:
       - build
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
 
   publish-to-testpypi:
     name: Publish to TestPyPI
-    if: startsWith(github.ref, 'ref/heads/develop') # only publish to PyPI on tag pushes
+    if: github.ref == 'refs/heads/develop'
     needs:
       - build
     runs-on: ubuntu-latest
