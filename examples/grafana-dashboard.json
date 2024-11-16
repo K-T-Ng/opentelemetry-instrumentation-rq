@@ -15,10 +15,11 @@
         }
       ]
     },
+    "description": "This dashboard shows the traces run by basic usage",
     "editable": true,
     "fiscalYearStartMonth": 0,
     "graphTooltip": 0,
-    "id": 1,
+    "id": 2,
     "links": [],
     "panels": [
       {
@@ -74,12 +75,12 @@
           ]
         },
         "gridPos": {
-          "h": 7,
+          "h": 9,
           "w": 24,
           "x": 0,
           "y": 0
         },
-        "id": 1,
+        "id": 4,
         "options": {
           "cellHeight": "sm",
           "footer": {
@@ -90,15 +91,9 @@
             ],
             "show": false
           },
-          "showHeader": true,
-          "sortBy": [
-            {
-              "desc": true,
-              "displayName": "Start time"
-            }
-          ]
+          "showHeader": true
         },
-        "pluginVersion": "11.1.2",
+        "pluginVersion": "11.3.0",
         "targets": [
           {
             "datasource": {
@@ -107,143 +102,10 @@
             },
             "queryType": "search",
             "refId": "A",
-            "service": "rq-instrumentation-playground"
+            "service": "rq-instrumentation-basic-usage"
           }
         ],
-        "title": "Trace ID Table",
-        "type": "table"
-      },
-      {
-        "datasource": {
-          "type": "elasticsearch",
-          "uid": "P31C819B24CF3C3C7"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "custom": {
-              "align": "auto",
-              "cellOptions": {
-                "type": "auto"
-              },
-              "inspect": false
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            }
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "Trace ID"
-              },
-              "properties": [
-                {
-                  "id": "links",
-                  "value": [
-                    {
-                      "title": "",
-                      "url": "/d/${__dashboard.uid}﻿/${__dashboard}?var-trace_id=${__value.text}"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "Body"
-              },
-              "properties": [
-                {
-                  "id": "custom.width",
-                  "value": 593
-                }
-              ]
-            }
-          ]
-        },
-        "gridPos": {
-          "h": 7,
-          "w": 24,
-          "x": 0,
-          "y": 7
-        },
-        "id": 3,
-        "options": {
-          "cellHeight": "sm",
-          "footer": {
-            "countRows": false,
-            "fields": "",
-            "reducer": [
-              "sum"
-            ],
-            "show": false
-          },
-          "showHeader": true,
-          "sortBy": [
-            {
-              "desc": true,
-              "displayName": "SeverityText"
-            }
-          ]
-        },
-        "pluginVersion": "11.1.2",
-        "targets": [
-          {
-            "alias": "",
-            "bucketAggs": [],
-            "datasource": {
-              "type": "elasticsearch",
-              "uid": "P31C819B24CF3C3C7"
-            },
-            "metrics": [
-              {
-                "id": "1",
-                "settings": {
-                  "limit": "500"
-                },
-                "type": "logs"
-              }
-            ],
-            "query": "TraceId: ${trace_id}",
-            "refId": "A",
-            "timeField": "@timestamp"
-          }
-        ],
-        "title": "Trace ID Table",
-        "transformations": [
-          {
-            "id": "filterFieldsByName",
-            "options": {
-              "include": {
-                "names": [
-                  "@timestamp",
-                  "Body",
-                  "SeverityText",
-                  "TraceId",
-                  "Attributes.code.filepath",
-                  "Attributes.code.function",
-                  "Attributes.code.lineno"
-                ]
-              }
-            }
-          }
-        ],
+        "title": "Traces",
         "type": "table"
       },
       {
@@ -253,24 +115,17 @@
         },
         "fieldConfig": {
           "defaults": {},
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "Trace ID"
-              },
-              "properties": []
-            }
-          ]
+          "overrides": []
         },
         "gridPos": {
-          "h": 17,
+          "h": 21,
           "w": 24,
           "x": 0,
-          "y": 14
+          "y": 9
         },
-        "id": 2,
-        "pluginVersion": "11.1.2",
+        "id": 5,
+        "options": {},
+        "pluginVersion": "11.3.0",
         "targets": [
           {
             "datasource": {
@@ -279,25 +134,33 @@
             },
             "query": "${trace_id}",
             "refId": "A",
-            "service": "rq-instrumentation-playground"
+            "service": "rq-instrumentation-basic-usage"
           }
         ],
         "title": "Trace Detail",
         "type": "traces"
       }
     ],
+    "preload": false,
     "refresh": "",
-    "schemaVersion": 39,
+    "schemaVersion": 40,
     "tags": [],
     "templating": {
       "list": [
         {
-          "current": {},
-          "hide": 2,
+          "current": {
+            "text": "4d52f98104729341b06b61d4c338a592",
+            "value": "4d52f98104729341b06b61d4c338a592"
+          },
           "name": "trace_id",
-          "options": [],
-          "query": "",
-          "skipUrlSync": false,
+          "options": [
+            {
+              "selected": true,
+              "text": "4d52f98104729341b06b61d4c338a592",
+              "value": "4d52f98104729341b06b61d4c338a592"
+            }
+          ],
+          "query": "4d52f98104729341b06b61d4c338a592",
           "type": "textbox"
         }
       ]
@@ -308,8 +171,8 @@
     },
     "timepicker": {},
     "timezone": "browser",
-    "title": "RQ Instrumentation Playground",
+    "title": "basic-usage",
     "uid": "cdutau26c701sa",
-    "version": 7,
+    "version": 14,
     "weekStart": ""
   }

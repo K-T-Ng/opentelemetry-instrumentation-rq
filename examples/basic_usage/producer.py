@@ -9,10 +9,11 @@ from rq import Queue
 from tasks import task
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.NOTSET)
-    initialize(
-        otlp_http_endpoint="http://localhost:4318", logger_names=("root", __name__)
+    logging.basicConfig(
+        level=logging.NOTSET,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    initialize(otlp_http_endpoint="http://localhost:4318")
 
     redis = Redis()
     queue = Queue("task_queue", connection=redis)
