@@ -1,0 +1,178 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "description": "This dashboard shows the traces run by basic usage",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 2,
+    "links": [],
+    "panels": [
+      {
+        "datasource": {
+          "type": "jaeger",
+          "uid": "PC9A941E8F2E49454"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Trace ID"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "/d/${__dashboard.uid}﻿/${__dashboard}?var-trace_id=${__value.text}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 4,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true
+        },
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "jaeger",
+              "uid": "PC9A941E8F2E49454"
+            },
+            "queryType": "search",
+            "refId": "A",
+            "service": "rq-instrumentation-basic-usage"
+          }
+        ],
+        "title": "Traces",
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "jaeger",
+          "uid": "PC9A941E8F2E49454"
+        },
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 21,
+          "w": 24,
+          "x": 0,
+          "y": 9
+        },
+        "id": 5,
+        "options": {},
+        "pluginVersion": "11.3.0",
+        "targets": [
+          {
+            "datasource": {
+              "type": "jaeger",
+              "uid": "PC9A941E8F2E49454"
+            },
+            "query": "${trace_id}",
+            "refId": "A",
+            "service": "rq-instrumentation-basic-usage"
+          }
+        ],
+        "title": "Trace Detail",
+        "type": "traces"
+      }
+    ],
+    "preload": false,
+    "refresh": "",
+    "schemaVersion": 40,
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "text": "4d52f98104729341b06b61d4c338a592",
+            "value": "4d52f98104729341b06b61d4c338a592"
+          },
+          "name": "trace_id",
+          "options": [
+            {
+              "selected": true,
+              "text": "4d52f98104729341b06b61d4c338a592",
+              "value": "4d52f98104729341b06b61d4c338a592"
+            }
+          ],
+          "query": "4d52f98104729341b06b61d4c338a592",
+          "type": "textbox"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "basic-usage",
+    "uid": "cdutau26c701sa",
+    "version": 14,
+    "weekStart": ""
+  }

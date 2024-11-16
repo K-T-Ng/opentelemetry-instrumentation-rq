@@ -1,0 +1,41 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger-collector:4317
+    tls:
+      insecure: true
+  elasticsearch/logs:
+    endpoint: https://elasticsearch:9200
+    auth:
+      authenticator: basicauth
+    tls:
+      insecure: false
+      insecure_skip_verify: true
+
+extensions:
+  basicauth:
+    client_auth:
+      username: elastic
+      password: CHANGEME
+
+service:
+  extensions: [basicauth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [elasticsearch/logs]
