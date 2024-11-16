@@ -1,0 +1,5 @@
+rq==2.0.0
+redis==5.2.0
+
+opentelemetry-exporter-otlp==1.28.0
+opentelemetry_instrumentation_rq==0.0.3
