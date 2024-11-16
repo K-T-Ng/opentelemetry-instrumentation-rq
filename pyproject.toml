@@ -11,6 +11,12 @@ authors = [
 description = "OpenTelemetry instrumentation for python RQ library"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+  "rq>=2.0.0",
+  "opentelemetry-api>=1.28.0",
+  "opentelemetry-sdk>=1.28.0",
+  "opentelemetry-instrumentation>=0.49b1"
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
