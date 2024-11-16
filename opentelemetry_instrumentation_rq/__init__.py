@@ -5,7 +5,7 @@ Instrument `rq` to trace rq scheduled jobs.
 from typing import Callable, Collection, Dict, Tuple
 
 import rq.queue
-from opentelemetry import _logs, trace
+from opentelemetry import trace
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.instrumentation.utils import unwrap
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
