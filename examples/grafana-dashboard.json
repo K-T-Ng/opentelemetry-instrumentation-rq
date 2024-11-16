@@ -1,0 +1,315 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 1,
+    "links": [],
+    "panels": [
+      {
+        "datasource": {
+          "type": "jaeger",
+          "uid": "PC9A941E8F2E49454"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Trace ID"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "/d/${__dashboard.uid}﻿/${__dashboard}?var-trace_id=${__value.text}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "Start time"
+            }
+          ]
+        },
+        "pluginVersion": "11.1.2",
+        "targets": [
+          {
+            "datasource": {
+              "type": "jaeger",
+              "uid": "PC9A941E8F2E49454"
+            },
+            "queryType": "search",
+            "refId": "A",
+            "service": "rq-instrumentation-playground"
+          }
+        ],
+        "title": "Trace ID Table",
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "elasticsearch",
+          "uid": "P31C819B24CF3C3C7"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Trace ID"
+              },
+              "properties": [
+                {
+                  "id": "links",
+                  "value": [
+                    {
+                      "title": "",
+                      "url": "/d/${__dashboard.uid}﻿/${__dashboard}?var-trace_id=${__value.text}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Body"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 593
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 24,
+          "x": 0,
+          "y": 7
+        },
+        "id": 3,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "SeverityText"
+            }
+          ]
+        },
+        "pluginVersion": "11.1.2",
+        "targets": [
+          {
+            "alias": "",
+            "bucketAggs": [],
+            "datasource": {
+              "type": "elasticsearch",
+              "uid": "P31C819B24CF3C3C7"
+            },
+            "metrics": [
+              {
+                "id": "1",
+                "settings": {
+                  "limit": "500"
+                },
+                "type": "logs"
+              }
+            ],
+            "query": "TraceId: ${trace_id}",
+            "refId": "A",
+            "timeField": "@timestamp"
+          }
+        ],
+        "title": "Trace ID Table",
+        "transformations": [
+          {
+            "id": "filterFieldsByName",
+            "options": {
+              "include": {
+                "names": [
+                  "@timestamp",
+                  "Body",
+                  "SeverityText",
+                  "TraceId",
+                  "Attributes.code.filepath",
+                  "Attributes.code.function",
+                  "Attributes.code.lineno"
+                ]
+              }
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "jaeger",
+          "uid": "PC9A941E8F2E49454"
+        },
+        "fieldConfig": {
+          "defaults": {},
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Trace ID"
+              },
+              "properties": []
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 17,
+          "w": 24,
+          "x": 0,
+          "y": 14
+        },
+        "id": 2,
+        "pluginVersion": "11.1.2",
+        "targets": [
+          {
+            "datasource": {
+              "type": "jaeger",
+              "uid": "PC9A941E8F2E49454"
+            },
+            "query": "${trace_id}",
+            "refId": "A",
+            "service": "rq-instrumentation-playground"
+          }
+        ],
+        "title": "Trace Detail",
+        "type": "traces"
+      }
+    ],
+    "refresh": "",
+    "schemaVersion": 39,
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {},
+          "hide": 2,
+          "name": "trace_id",
+          "options": [],
+          "query": "",
+          "skipUrlSync": false,
+          "type": "textbox"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "RQ Instrumentation Playground",
+    "uid": "cdutau26c701sa",
+    "version": 7,
+    "weekStart": ""
+  }

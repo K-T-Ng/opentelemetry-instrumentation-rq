@@ -1,0 +1,18 @@
+services:
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=CHANGEME
+
+
+  redis:
+    image: redis:alpine3.20
+    container_name: redis
+    ports:
+      - 6379:6379
+
+
+networks:
+  observability-backend:
