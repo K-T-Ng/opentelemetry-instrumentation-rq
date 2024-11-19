@@ -3,6 +3,7 @@
 from typing import List
 
 import fakeredis
+from opentelemetry import trace
 from opentelemetry.sdk.trace import Span
 from opentelemetry.test.test_base import TestBase
 from rq.job import Job
@@ -60,34 +61,65 @@ class TestRQInstrumentor(TestBase):
         self.assertSpanHasAttributes(span, expected_attributes)
         self.assertIn("traceparent", job.meta)
 
-    def test_instrument_perform_job(self):
-        """Test instrumentation for `rq.worker.Worker.perform_job`"""
+    def test_instrument_perform(self):
+        """Test instrumentation for `rq.job.Job.perform`"""
         job = Job.create(
             func=print, args=(10,), id="job_id", connection=self.fake_redis
         )
-        queue = Queue(name="queue_name", connection=self.fake_redis)
-        worker = Worker(
-            queues=["queue_name"], name="worker_name", connection=self.fake_redis
+        job.prepare_for_execution(
+            worker_name="worker_name", pipeline=self.fake_redis.pipeline()
         )
 
         expected_attributes = {
             "worker.name": "worker_name",
             "job.id": "job_id",
             "job.func_name": "builtins.print",
-            "queue.name": "queue_name",
         }
 
-        worker.perform_job(job, queue)
+        job.perform()
 
         spans: List[Span] = self.memory_exporter.get_finished_spans()
         self.assertEqual(
             len(spans),
             1,
-            "There should only have one span if only perform_job is triggered",
+            "There should only have one span if only perform is triggered",
         )
 
         span = spans[0]
         self.assertSpanHasAttributes(span, expected_attributes)
+
+    def test_instrument_perform_with_exception(self):
+        """Test instrumentation for `rq.job.Job.perform`, but
+        with exception within job.
+        """
+
+        def task():
+            raise ValueError("For testing")
+
+        job = Job.create(func=task, id="job_id", connection=self.fake_redis)
+        job.prepare_for_execution(
+            worker_name="worker_name", pipeline=self.fake_redis.pipeline()
+        )
+
+        # 1. Should raise ValueError, as definition in `task`
+        with self.assertRaises(ValueError):
+            job.perform()
+
+        # 2. Should have one span finished
+        spans: List[Span] = self.memory_exporter.get_finished_spans()
+        self.assertEqual(
+            len(spans),
+            1,
+            "There should only have one span if only perform is triggered",
+        )
+
+        # 3. Span statue should be ERROR
+        span = spans[0]
+        self.assertEqual(
+            span.status.status_code,
+            trace.StatusCode.ERROR,
+            "Span staus should be ERROR",
+        )
 
     def test_instrument_both_enqeue_and_perform_job(self):
         """Test instumentation for both `rq.queue.Queue._enqueue` and `rq.worker.Worker.perform_job`"""
