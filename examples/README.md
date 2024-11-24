@@ -4,35 +4,33 @@ This folder contains example use cases for the `opentelemetry_instrumentation_rq
 
 ## Description
 
-The `docker-compose.yaml` file includes several components, as described in the table below:
+The `environment/docker-compose.yaml` file includes several components, as described in the table below:
 
 | Service           | Description                                          | Ports Exposed       |
 |-------------------|------------------------------------------------------|---------------------|
-| `redis`           | Backend for Python RQ                               | `6379:6379`         |
+| `redis`           | Backend for Python RQ                                | `6379:6379`         |
 | `otel-collector`  | Collects tracing and logging data from examples      | `4317:4317`, `4318:4318` |
-| `jaeger-collector`| Receives tracing data from the `otel-collector`      | `4317`, `4318`      |
-| `elasticsearch`   | Stores tracing and logging data                     | `9200`              |
-| `jaeger-query`    | Query service for tracing data                      |                     |
-| `grafana`         | Visualization tool for multiple databases           | `3000:3000`         |
+| `jaeger-all-in-one`| Acting Jaeger Collector and Query. Receives and Show tracing data from the `otel-collector`      | `16686:16686`, `4317`, `4318`      |
 
 ## Quick Start
-
 1. **Launch the stack:**
    Use Docker Compose to start all the services:
 
     ```bash
+    cd environment
     docker compose up -d
+    cd ..
     ```
 
-2. **Access Grafana:**
-   Open a web browser and navigate to [http://localhost:3000](http://localhost:3000).
-   Log in using the credentials:
-   **Username:** `admin`
-   **Password:** `CHANGEME`
+2. **Access Jaeger Query UI:**
+   Open a web browser and navigate to [http://localhost:16686](http://localhost:16686).
 
 ## Shutdown
 
 To clean up and stop all running services:
 
 ```bash
+cd environment
 docker compose down --remove-orphans
+cd ..
+```

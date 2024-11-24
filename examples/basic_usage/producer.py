@@ -1,4 +1,4 @@
-"""A producer keep enqueuing job to RQ"""
+"""A producer keep enqueuing job to RQ, 5 second per job"""
 
 import logging
 import time
