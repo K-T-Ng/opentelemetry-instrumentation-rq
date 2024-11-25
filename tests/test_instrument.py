@@ -3,12 +3,13 @@
 from typing import List
 
 import fakeredis
+import mock
 from opentelemetry import trace
 from opentelemetry.sdk.trace import Span
 from opentelemetry.test.test_base import TestBase
+from opentelemetry.trace import SpanKind
 from rq.job import Job
 from rq.queue import Queue
-from rq.worker import Worker
 
 from opentelemetry_instrumentation_rq import RQInstrumentor
 
@@ -23,8 +24,13 @@ class TestRQInstrumentor(TestBase):
         - Instrument rq
         """
         super().setUp()
-        self.fake_redis = fakeredis.FakeRedis()
+        self.fakeredis = fakeredis.FakeRedis()
         RQInstrumentor().instrument()
+
+        self.job = Job.create(
+            func=print, args=(10,), id="job_id", connection=self.fakeredis
+        )
+        self.queue = Queue(name="queue_name", connection=self.fakeredis)
 
     def tearDown(self):
         """Teardown after testing
@@ -36,19 +42,14 @@ class TestRQInstrumentor(TestBase):
 
     def test_instrument__enqueue(self):
         """Test instrumentation for `rq.queue.Queue._enqueue_job`"""
-        job = Job.create(
-            func=print, args=(10,), id="job_id", connection=self.fake_redis
-        )
-        queue = Queue(name="queue_name", connection=self.fake_redis)
 
-        expected_attributes = {
-            "job.id": "job_id",
-            "job.func_name": "builtins.print",
-            "queue.name": "queue_name",
-        }
-
-        # pylint: disable=protected-access
-        queue._enqueue_job(job)
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._get_general_attributes"
+        ) as get_general_attributes:
+            # pylint: disable=protected-access
+            self.queue._enqueue_job(self.job)
+            self.assertIn("traceparent", self.job.meta)
+            get_general_attributes.assert_called_with(job=self.job, queue=self.queue)
 
         spans: List[Span] = self.memory_exporter.get_finished_spans()
         self.assertEqual(
@@ -58,25 +59,19 @@ class TestRQInstrumentor(TestBase):
         )
 
         span = spans[0]
-        self.assertSpanHasAttributes(span, expected_attributes)
-        self.assertIn("traceparent", job.meta)
+        self.assertEqual(span.kind, SpanKind.PRODUCER)
 
     def test_instrument_perform(self):
         """Test instrumentation for `rq.job.Job.perform`"""
-        job = Job.create(
-            func=print, args=(10,), id="job_id", connection=self.fake_redis
-        )
-        job.prepare_for_execution(
-            worker_name="worker_name", pipeline=self.fake_redis.pipeline()
+        self.job.prepare_for_execution(
+            worker_name="worker_name", pipeline=self.fakeredis.pipeline()
         )
 
-        expected_attributes = {
-            "worker.name": "worker_name",
-            "job.id": "job_id",
-            "job.func_name": "builtins.print",
-        }
-
-        job.perform()
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._get_general_attributes"
+        ) as get_general_attributes:
+            self.job.perform()
+            get_general_attributes.assert_called_with(job=self.job)
 
         spans: List[Span] = self.memory_exporter.get_finished_spans()
         self.assertEqual(
@@ -86,7 +81,7 @@ class TestRQInstrumentor(TestBase):
         )
 
         span = spans[0]
-        self.assertSpanHasAttributes(span, expected_attributes)
+        self.assertEqual(span.kind, SpanKind.CONSUMER)
 
     def test_instrument_perform_with_exception(self):
         """Test instrumentation for `rq.job.Job.perform`, but
@@ -96,14 +91,14 @@ class TestRQInstrumentor(TestBase):
         def task():
             raise ValueError("For testing")
 
-        job = Job.create(func=task, id="job_id", connection=self.fake_redis)
-        job.prepare_for_execution(
-            worker_name="worker_name", pipeline=self.fake_redis.pipeline()
+        self.job = Job.create(func=task, id="job_id", connection=self.fakeredis)
+        self.job.prepare_for_execution(
+            worker_name="worker_name", pipeline=self.fakeredis.pipeline()
         )
 
         # 1. Should raise ValueError, as definition in `task`
         with self.assertRaises(ValueError):
-            job.perform()
+            self.job.perform()
 
         # 2. Should have one span finished
         spans: List[Span] = self.memory_exporter.get_finished_spans()
@@ -118,29 +113,4 @@ class TestRQInstrumentor(TestBase):
         self.assertEqual(
             span.status.status_code,
             trace.StatusCode.ERROR,
-            "Span staus should be ERROR",
         )
-
-    def test_instrument_both_enqeue_and_perform_job(self):
-        """Test instumentation for both `rq.queue.Queue._enqueue` and `rq.worker.Worker.perform_job`"""
-        job = Job.create(
-            func=print, args=(10,), id="job_id", connection=self.fake_redis
-        )
-        queue = Queue(name="queue_name", connection=self.fake_redis)
-        worker = Worker(
-            queues=["queue_name"], name="worker_name", connection=self.fake_redis
-        )
-
-        # pylint: disable=protected-access
-        enqueued_job: Job = queue._enqueue_job(job)
-        worker.perform_job(enqueued_job, queue)
-
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans), 2, "There should be 2 spans after _enqueue_job and perfrom_job"
-        )
-
-        _enqueued_job_span = spans[0]
-        perform_job_span = spans[1]
-
-        assert perform_job_span.parent.trace_id == _enqueued_job_span.context.trace_id

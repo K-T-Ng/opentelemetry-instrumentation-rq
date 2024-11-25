@@ -14,16 +14,15 @@ from rq.queue import Queue
 from rq.worker import Worker
 from wrapt import wrap_function_wrapper
 
+from opentelemetry_instrumentation_rq import utils
+
 
 def _instrument_perform_job(
     func: Callable, instance: Worker, args: Tuple, kwargs: Dict
 ) -> Callable:
     """Ensure all tracing data force flusted before exited `Worker.perform_job`"""
     response = func(*args, **kwargs)
-
-    # Force flush due to job runs in subprocess
     trace.get_tracer_provider().force_flush()
-
     return response
 
 
@@ -32,32 +31,21 @@ def _instrument_perform(
 ) -> Callable:
     """Tracing instrumentation for `Job.perform"""
     job: Job = instance
+    attributes = utils._get_general_attributes(job=job)
 
-    attributes: Dict = {
-        "worker.name": job.worker_name,
-        "job.id": job.id,
-        "job.func_name": job.func_name,
-    }
     tracer = trace.get_tracer(__name__)
     ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
 
-    """
-    We use context manager without `with` statement because
-    we want to record both exception and execution time on
-    the current span.
-    """
     span_context_manager = tracer.start_as_current_span(
         name="enqueue", kind=trace.SpanKind.CONSUMER, context=ctx
     )
-    span = span_context_manager.__enter__()
-    if span.is_recording():
-        span.set_attributes(attributes=attributes)
 
+    span = span_context_manager.__enter__()
+    utils._set_span_attributes(span, attributes)
     try:
         response = func(*args, **kwargs)
     except Exception as exc:
-        span.set_status(trace.Status(trace.StatusCode.ERROR))
-        span.record_exception(exc)
+        utils._set_span_error_status(span, exc)
         raise exc
     finally:
         span_context_manager.__exit__(None, None, None)
@@ -71,20 +59,14 @@ def _instrument__enqueue_job(
     """Tracing instrumentation for `Queue._enqueue_job`"""
     job: Job = args[0]
     queue: Queue = instance
-
-    attributes: Dict = {
-        "job.id": job.id,
-        "job.func_name": job.func_name,
-        "queue.name": queue.name,
-    }
+    attributes = utils._get_general_attributes(job=job, queue=queue)
 
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span(
         name="enqueue", kind=trace.SpanKind.PRODUCER
     ) as span:
-        if span.is_recording():
-            span.set_attributes(attributes=attributes)
-            TraceContextTextMapPropagator().inject(job.meta)
+        utils._set_span_attributes(span, attributes)
+        utils._inject_context_to_job_meta(span, job)
         response = func(*args, **kwargs)
 
     return response
