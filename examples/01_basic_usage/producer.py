@@ -6,7 +6,7 @@ import time
 from opentelemetry_setup import initialize
 from redis import Redis
 from rq import Queue
-from tasks import task
+from tasks import task_delay, task_error, task_normal
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -18,6 +18,11 @@ if __name__ == "__main__":
     redis = Redis()
     queue = Queue("task_queue", connection=redis)
 
-    while True:
-        job = queue.enqueue(task)
-        time.sleep(10)
+    time.sleep(1)
+    job = queue.enqueue(task_normal)
+
+    time.sleep(1)
+    job = queue.enqueue(task_error)
+
+    time.sleep(1)
+    job = queue.enqueue(task_delay)

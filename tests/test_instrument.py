@@ -8,10 +8,13 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import Span
 from opentelemetry.test.test_base import TestBase
 from opentelemetry.trace import SpanKind
+from rq import Callback
 from rq.job import Job
 from rq.queue import Queue
+from rq.timeouts import UnixSignalDeathPenalty
 
 from opentelemetry_instrumentation_rq import RQInstrumentor
+from tests import tasks
 
 
 class TestRQInstrumentor(TestBase):
@@ -24,12 +27,9 @@ class TestRQInstrumentor(TestBase):
         - Instrument rq
         """
         super().setUp()
-        self.fakeredis = fakeredis.FakeRedis()
         RQInstrumentor().instrument()
 
-        self.job = Job.create(
-            func=print, args=(10,), id="job_id", connection=self.fakeredis
-        )
+        self.fakeredis = fakeredis.FakeRedis()
         self.queue = Queue(name="queue_name", connection=self.fakeredis)
 
     def tearDown(self):
@@ -43,13 +43,15 @@ class TestRQInstrumentor(TestBase):
     def test_instrument__enqueue(self):
         """Test instrumentation for `rq.queue.Queue._enqueue_job`"""
 
+        job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
+
         with mock.patch(
             "opentelemetry_instrumentation_rq.utils._get_general_attributes"
         ) as get_general_attributes:
             # pylint: disable=protected-access
-            self.queue._enqueue_job(self.job)
-            self.assertIn("traceparent", self.job.meta)
-            get_general_attributes.assert_called_with(job=self.job, queue=self.queue)
+            self.queue._enqueue_job(job)
+            self.assertIn("traceparent", job.meta)
+            get_general_attributes.assert_called_with(job=job, queue=self.queue)
 
         spans: List[Span] = self.memory_exporter.get_finished_spans()
         self.assertEqual(
@@ -63,15 +65,16 @@ class TestRQInstrumentor(TestBase):
 
     def test_instrument_perform(self):
         """Test instrumentation for `rq.job.Job.perform`"""
-        self.job.prepare_for_execution(
+        job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
+        job.prepare_for_execution(
             worker_name="worker_name", pipeline=self.fakeredis.pipeline()
         )
 
         with mock.patch(
             "opentelemetry_instrumentation_rq.utils._get_general_attributes"
         ) as get_general_attributes:
-            self.job.perform()
-            get_general_attributes.assert_called_with(job=self.job)
+            job.perform()
+            get_general_attributes.assert_called_with(job=job)
 
         spans: List[Span] = self.memory_exporter.get_finished_spans()
         self.assertEqual(
@@ -88,17 +91,16 @@ class TestRQInstrumentor(TestBase):
         with exception within job.
         """
 
-        def task():
-            raise ValueError("For testing")
-
-        self.job = Job.create(func=task, id="job_id", connection=self.fakeredis)
-        self.job.prepare_for_execution(
+        job = Job.create(
+            func=tasks.task_exception, id="job_id", connection=self.fakeredis
+        )
+        job.prepare_for_execution(
             worker_name="worker_name", pipeline=self.fakeredis.pipeline()
         )
 
-        # 1. Should raise ValueError, as definition in `task`
-        with self.assertRaises(ValueError):
-            self.job.perform()
+        # 1. Should raise CustomException, as definition in `task_exception`
+        with self.assertRaises(tasks.CustomException):
+            job.perform()
 
         # 2. Should have one span finished
         spans: List[Span] = self.memory_exporter.get_finished_spans()
@@ -109,6 +111,54 @@ class TestRQInstrumentor(TestBase):
         )
 
         # 3. Span statue should be ERROR
+        span = spans[0]
+        self.assertEqual(
+            span.status.status_code,
+            trace.StatusCode.ERROR,
+        )
+
+    def test_instrument_execute_callback(self):
+        """Test instrumentation for `rq.job.Job.execute_*_callback`"""
+
+        job = Job.create(
+            func=tasks.task_normal,
+            id="job_id",
+            connection=self.fakeredis,
+            on_success=Callback(tasks.success_callback),
+        )
+
+        job.execute_success_callback(UnixSignalDeathPenalty, None)
+
+        spans: List[Span] = self.memory_exporter.get_finished_spans()
+        self.assertEqual(
+            len(spans),
+            1,
+            "There should only have one span if we trigger `execute_succes_callback` directly",
+        )
+
+        span = spans[0]
+        self.assertEqual(span.name, "success_callback")
+
+    def test_instrument_execute_callback_with_exception(self):
+        """Test instrumentation for `rq.job.Job.execute_*_callback`, but with exception"""
+
+        job = Job.create(
+            func=tasks.task_exception,
+            id="job_id",
+            connection=self.fakeredis,
+            on_success=Callback(tasks.success_callback_exception),
+        )
+
+        with self.assertRaises(tasks.CustomException):
+            job.execute_success_callback(UnixSignalDeathPenalty, None)
+
+        spans: List[Span] = self.memory_exporter.get_finished_spans()
+        self.assertEqual(
+            len(spans),
+            1,
+            "There should only have one span if we trigger `execute_succes_callback` directly",
+        )
+
         span = spans[0]
         self.assertEqual(
             span.status.status_code,
