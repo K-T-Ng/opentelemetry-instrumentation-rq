@@ -31,7 +31,7 @@ def initialize(
     """Initalize OpenTelemetry instrumentation"""
     resource = Resource(
         attributes={
-            "service.name": "rq-instrumentation-basic-usage",
+            "service.name": "rq-instrumentation-example",
             "service.version": "0.1.0",
         }
     )
