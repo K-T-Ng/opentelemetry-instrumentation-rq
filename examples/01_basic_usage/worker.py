@@ -2,9 +2,10 @@
 
 import logging
 
-from opentelemetry_setup import initialize
 from redis import Redis
 from rq import Queue, Worker
+
+from opentelemetry_setup import initialize
 
 if __name__ == "__main__":
     logging.basicConfig(

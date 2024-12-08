@@ -11,14 +11,17 @@ Automatic tracing when
 * Callback function execution after a job succeeds, fails, or stops, via `rq.job.Job.execute_*_callback`
 
 ### Planned
-- [ ] Enhanced Enqueue Tracing
+- [ ] Enqueue Tracing
     - [ ] Support span linking for job dependencies.
-    - [ ] Add support for enqueue functions used by the RQ scheduler.
-- [ ] Enhanced Consumer Tracing
+    - [x] Add tracing for `rq.queue.Queue._enqueue` (not worked for schedlue job).
+    - [x] Add support for enqueue functions used by the RQ scheduler.
+- [ ] Producer Tracing
     - [ ] Add tracing for the outer layer `rq.worker.Worker.perform_job` to visualize the execution time for the entire fork process.
+    - [x] Add tracing for the inner layer `rq.job.Job.perform`.
     - [ ] Add tracing for the inner layer `handle_job_*`  to visualize post-processing after job execution.
 - [ ] Improved Clarity
     - [ ] Refine span names and attributes for better readability and understanding.
+- [ ] Adjust the dependencies version by testing the lower limit.
 
 ## Installation
 Install this package with `pip`:

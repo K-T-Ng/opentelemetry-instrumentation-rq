@@ -3,11 +3,12 @@
 import logging
 import time
 
-import tasks
-from opentelemetry_setup import initialize
 from redis import Redis
 from rq import Callback, Queue
 from rq.command import send_stop_job_command
+
+import tasks
+from opentelemetry_setup import initialize
 
 if __name__ == "__main__":
     logging.basicConfig(

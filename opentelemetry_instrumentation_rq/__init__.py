@@ -2,6 +2,7 @@
 Instrument `rq` to trace rq scheduled jobs.
 """
 
+from datetime import datetime
 from typing import Callable, Collection, Dict, Literal, Tuple
 
 import rq.queue
@@ -57,13 +58,37 @@ def _instrument__enqueue_job(
     func: Callable, instance: Queue, args: Tuple, kwargs: Dict
 ) -> Callable:
     """Tracing instrumentation for `Queue._enqueue_job`"""
-    job: Job = args[0]
+    job: Job = kwargs.get("job") or args[0]
     queue: Queue = instance
     attributes = utils._get_general_attributes(job=job, queue=queue)
 
     tracer = trace.get_tracer(__name__)
+    ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
+
     with tracer.start_as_current_span(
-        name="enqueue", kind=trace.SpanKind.PRODUCER
+        name="enqueue", kind=trace.SpanKind.PRODUCER, context=ctx
+    ) as span:
+        utils._set_span_attributes(span, attributes)
+        utils._inject_context_to_job_meta(span, job)
+        response = func(*args, **kwargs)
+
+    return response
+
+
+def _instrument_schedule_job(
+    func: Callable, instance: Queue, args: Tuple, kwargs: Dict
+) -> Callable:
+    """Tracing instrumentation for `Queue.schedule_job`"""
+    queue: Queue = instance
+
+    job: Job = kwargs.get("job") or args[0]
+    scheduled_time: datetime = kwargs.get("datetime") or args[1]
+    attributes = utils._get_general_attributes(job=job, queue=queue)
+    attributes["schedule.time"] = str(scheduled_time)
+
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span(
+        name="schedule", kind=trace.SpanKind.PRODUCER
     ) as span:
         utils._set_span_attributes(span, attributes)
         utils._inject_context_to_job_meta(span, job)
@@ -122,6 +147,9 @@ class RQInstrumentor(BaseInstrumentor):
         wrap_function_wrapper(
             "rq.queue", "Queue._enqueue_job", _instrument__enqueue_job
         )
+        wrap_function_wrapper(
+            "rq.queue", "Queue.schedule_job", _instrument_schedule_job
+        )
 
         # Instrumentation for task consumer
         wrap_function_wrapper(
@@ -157,4 +185,5 @@ class RQInstrumentor(BaseInstrumentor):
 
         unwrap(rq.worker.Worker, "perform_job")
         unwrap(rq.job.Job, "perform")
+        unwrap(rq.queue.Queue, "schedule_job")
         unwrap(rq.queue.Queue, "_enqueue_job")

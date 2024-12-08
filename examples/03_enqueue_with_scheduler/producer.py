@@ -1,13 +1,13 @@
 """A producer keep enqueuing job to RQ, 5 second per job"""
 
 import logging
-import time
+from datetime import datetime, timedelta
 
 from redis import Redis
 from rq import Queue
 
+import tasks
 from opentelemetry_setup import initialize
-from tasks import task_delay, task_error, task_normal
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -19,11 +19,9 @@ if __name__ == "__main__":
     redis = Redis()
     queue = Queue("task_queue", connection=redis)
 
-    time.sleep(1)
-    job = queue.enqueue(task_normal)
+    # Schedule job using `enqueue_in`
+    job = queue.enqueue_in(time_delta=timedelta(seconds=3), func=tasks.task_normal)
 
-    time.sleep(1)
-    job = queue.enqueue(task_error)
-
-    time.sleep(1)
-    job = queue.enqueue(task_delay)
+    # Schedule job using `enqueue_at`
+    enqueue_at = datetime.now() + timedelta(seconds=3)
+    job = queue.enqueue_at(datetime=enqueue_at, f=tasks.task_normal)
