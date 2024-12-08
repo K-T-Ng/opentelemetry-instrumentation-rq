@@ -1,13 +1,11 @@
-"""A producer keep enqueuing job to RQ, 5 second per job"""
+"""RQ worker"""
 
 import logging
-import time
 
 from redis import Redis
-from rq import Queue
+from rq import Queue, Worker
 
 from opentelemetry_setup import initialize
-from tasks import task_delay, task_error, task_normal
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -16,14 +14,8 @@ if __name__ == "__main__":
     )
     initialize(otlp_http_endpoint="http://localhost:4318")
 
-    redis = Redis()
+    redis = Redis(host="localhost", port=6379)
     queue = Queue("task_queue", connection=redis)
 
-    time.sleep(1)
-    job = queue.enqueue(task_normal)
-
-    time.sleep(1)
-    job = queue.enqueue(task_error)
-
-    time.sleep(1)
-    job = queue.enqueue(task_delay)
+    worker = Worker([queue], connection=redis, name="rq-worker")
+    worker.work(with_scheduler=True)

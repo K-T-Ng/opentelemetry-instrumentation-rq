@@ -1,5 +1,6 @@
 """Unit tests for opentelemetry_instrumentation_rq/__init__.py"""
 
+from datetime import datetime
 from typing import List
 
 import fakeredis
@@ -116,6 +117,25 @@ class TestRQInstrumentor(TestBase):
             span.status.status_code,
             trace.StatusCode.ERROR,
         )
+
+    def test_instrument_schedule_job(self):
+        """Test instrumentation for `rq.queue.Queue.schedule_job`"""
+
+        job = Job.create(
+            func=tasks.task_exception, id="job_id", connection=self.fakeredis
+        )
+        job = self.queue.schedule_job(job=job, datetime=datetime.now())
+
+        spans: List[Span] = self.memory_exporter.get_finished_spans()
+        self.assertEqual(
+            len(spans),
+            1,
+            "There should only have one span if we trigger `schedule_job` directly",
+        )
+
+        span = spans[0]
+        self.assertEqual(span.name, "schedule")
+        self.assertIn("traceparent", job.meta)
 
     def test_instrument_execute_callback(self):
         """Test instrumentation for `rq.job.Job.execute_*_callback`"""

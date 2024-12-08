@@ -35,6 +35,7 @@ repos:
       entry: pylint
       language: system
       types: [python]
+      exclude: examples/
       args:
         [
           "-rn", # Only display messages
