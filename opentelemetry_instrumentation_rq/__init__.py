@@ -22,7 +22,27 @@ def _instrument_perform_job(
     func: Callable, instance: Worker, args: Tuple, kwargs: Dict
 ) -> Callable:
     """Ensure all tracing data force flusted before exited `Worker.perform_job`"""
-    response = func(*args, **kwargs)
+    job: Job = kwargs.get("job") or args[0]
+    queue: Queue = kwargs.get("queue") or args[1]
+    attributes = utils._get_general_attributes(job=job, queue=queue)
+
+    tracer = trace.get_tracer(__name__)
+    ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
+
+    span_context_manager = tracer.start_as_current_span(
+        name="perform_job", kind=trace.SpanKind.CONSUMER, context=ctx
+    )
+
+    span = span_context_manager.__enter__()
+    utils._set_span_attributes(span, attributes)
+    try:
+        response = func(*args, **kwargs)
+    except Exception as exc:
+        utils._set_span_error_status(span, exc)
+        raise exc
+    finally:
+        span_context_manager.__exit__(None, None, None)
+
     trace.get_tracer_provider().force_flush()
     return response
 

@@ -13,6 +13,7 @@ from rq import Callback
 from rq.job import Job
 from rq.queue import Queue
 from rq.timeouts import UnixSignalDeathPenalty
+from rq.worker import Worker
 
 from opentelemetry_instrumentation_rq import RQInstrumentor
 from tests import tasks
@@ -63,6 +64,18 @@ class TestRQInstrumentor(TestBase):
 
         span = spans[0]
         self.assertEqual(span.kind, SpanKind.PRODUCER)
+
+    def test_instrument_perform_job(self):
+        """Test instrumetation for `rq.worker.Worker.perform_job`"""
+        job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
+        worker = Worker(
+            queues=[self.queue], name="worker name", connection=self.fakeredis
+        )
+
+        worker.perform_job(job, self.queue)
+
+        spans: List[Span] = self.memory_exporter.get_finished_spans()
+        self.assertEqual(len(spans), 2)
 
     def test_instrument_perform(self):
         """Test instrumentation for `rq.job.Job.perform`"""
