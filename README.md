@@ -15,7 +15,7 @@ Automatic tracing when
     - [ ] Support span linking for job dependencies.
     - [x] Add tracing for `rq.queue.Queue._enqueue` (not worked for schedlue job).
     - [x] Add support for enqueue functions used by the RQ scheduler.
-- [ ] Producer Tracing
+- [ ] Consumer Tracing
     - [ ] Add tracing for the outer layer `rq.worker.Worker.perform_job` to visualize the execution time for the entire fork process.
     - [x] Add tracing for the inner layer `rq.job.Job.perform`.
     - [ ] Add tracing for the inner layer `handle_job_*`  to visualize post-processing after job execution.
