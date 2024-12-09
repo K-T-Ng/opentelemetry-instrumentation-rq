@@ -156,6 +156,37 @@ def _instrument_execute_callback_factory(
     return _instrument_execute_callback
 
 
+def _instrument_job_status_handler_factory(
+    handler_type: Literal["handle_job_success", "handle_job_failure"]
+) -> Callable:
+    def _instrument_job_status_handler(
+        func: Callable, instance: Job, args: Tuple, kwargs: Dict
+    ):
+        """Tracing instrumentation for `rq.worker.Worker.handle_job_*"""
+        job: Job = kwargs.get("job") or args[0]
+        queue: Queue = kwargs.get("queue") or args[1]
+        attributes = utils._get_general_attributes(job=job, queue=queue)
+
+        tracer = trace.get_tracer(__name__)
+        ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
+
+        span_context_manager = tracer.start_as_current_span(
+            name=handler_type, context=ctx
+        )
+        span = span_context_manager.__enter__()
+        utils._set_span_attributes(span, attributes)
+        try:
+            response = func(*args, **kwargs)
+        except Exception as exc:
+            utils._set_span_error_status(span, exc)
+        finally:
+            span_context_manager.__exit__(None, None, None)
+
+        return response
+
+    return _instrument_job_status_handler
+
+
 class RQInstrumentor(BaseInstrumentor):
     """An instrumentor of rq"""
 
@@ -196,6 +227,17 @@ class RQInstrumentor(BaseInstrumentor):
             "rq.job",
             "Job.execute_stopped_callback",
             _instrument_execute_callback_factory("stopped_callback"),
+        )
+
+        wrap_function_wrapper(
+            "rq.worker",
+            "Worker.handle_job_success",
+            _instrument_job_status_handler_factory("handle_job_success"),
+        )
+        wrap_function_wrapper(
+            "rq.worker",
+            "Worker.handle_job_failure",
+            _instrument_job_status_handler_factory("handle_job_failure"),
         )
 
     def _uninstrument(self, **kwargs):
