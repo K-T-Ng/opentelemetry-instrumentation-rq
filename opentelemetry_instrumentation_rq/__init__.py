@@ -3,13 +3,12 @@ Instrument `rq` to trace rq scheduled jobs.
 """
 
 from datetime import datetime
-from typing import Callable, Collection, Dict, Literal, Tuple
+from typing import Callable, Collection, Dict, Literal, Optional, Tuple
 
 import rq.queue
 from opentelemetry import trace
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.instrumentation.utils import unwrap
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from rq.job import Job
 from rq.queue import Queue
 from rq.worker import Worker
@@ -21,99 +20,108 @@ from opentelemetry_instrumentation_rq import utils
 def _instrument_perform_job(
     func: Callable, instance: Worker, args: Tuple, kwargs: Dict
 ) -> Callable:
-    """Ensure all tracing data force flusted before exited `Worker.perform_job`"""
-    job: Job = kwargs.get("job") or args[0]
-    queue: Queue = kwargs.get("queue") or args[1]
-    attributes = utils._get_general_attributes(job=job, queue=queue)
-
-    tracer = trace.get_tracer(__name__)
-    ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
-
-    span_context_manager = tracer.start_as_current_span(
-        name="perform_job", kind=trace.SpanKind.CONSUMER, context=ctx
+    """Tracing instrumentation for `Worker.perform_job`
+    - An outer trace instrumentation for knowing the total executation
+        time for user defined task and RQ maintenance tasks
+    - Ensure all the span data flushed before fork process exited
+    """
+    job: Optional[Job] = kwargs.get("job") or (
+        args[0] if isinstance(args[0], Job) else None
     )
-
-    span = span_context_manager.__enter__()
-    utils._set_span_attributes(span, attributes)
-    try:
-        response = func(*args, **kwargs)
-    except Exception as exc:
-        utils._set_span_error_status(span, exc)
-        raise exc
-    finally:
-        span_context_manager.__exit__(None, None, None)
-
-    trace.get_tracer_provider().force_flush()
+    queue: Optional[Queue] = kwargs.get("queue") or (
+        args[1] if isinstance(args[1], Queue) else None
+    )
+    span_attributes = utils._get_general_attributes(job=job, queue=queue)
+    response = utils._trace_instrument(
+        func=func,
+        span_name="perform_job",
+        span_kind=trace.SpanKind.CONSUMER,
+        span_attributes=span_attributes,
+        span_context_carrier=job.meta,
+        propagate=False,
+        args=args,
+        kwargs=kwargs,
+    )
+    trace.get_tracer_provider().force_flush()  # Force flush before fork exited
     return response
 
 
 def _instrument_perform(
     func: Callable, instance: Job, args: Tuple, kwargs: Dict
 ) -> Callable:
-    """Tracing instrumentation for `Job.perform"""
+    """Tracing instrumentation for `Job.perform`
+    - An inner trace instrumentation for knowing the execution
+        time and status for user defined task
+    """
     job: Job = instance
-    attributes = utils._get_general_attributes(job=job)
-
-    tracer = trace.get_tracer(__name__)
-    ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
-
-    span_context_manager = tracer.start_as_current_span(
-        name="perform", kind=trace.SpanKind.CONSUMER, context=ctx
+    span_attributes = utils._get_general_attributes(job=job)
+    response = utils._trace_instrument(
+        func=func,
+        span_name="perform",
+        span_kind=trace.SpanKind.CLIENT,
+        span_attributes=span_attributes,
+        span_context_carrier=job.meta,
+        propagate=False,
+        args=args,
+        kwargs=kwargs,
     )
-
-    span = span_context_manager.__enter__()
-    utils._set_span_attributes(span, attributes)
-    try:
-        response = func(*args, **kwargs)
-    except Exception as exc:
-        utils._set_span_error_status(span, exc)
-        raise exc
-    finally:
-        span_context_manager.__exit__(None, None, None)
-
     return response
 
 
 def _instrument__enqueue_job(
     func: Callable, instance: Queue, args: Tuple, kwargs: Dict
 ) -> Callable:
-    """Tracing instrumentation for `Queue._enqueue_job`"""
-    job: Job = kwargs.get("job") or args[0]
+    """Tracing instrumentation for `Queue._enqueue_job`
+    - A trace instrumentation for knowing when the task
+        is enqueued to Redis
+    """
+    job: Optional[Job] = kwargs.get("job") or (
+        args[0] if isinstance(args[0], Job) else None
+    )
     queue: Queue = instance
-    attributes = utils._get_general_attributes(job=job, queue=queue)
-
-    tracer = trace.get_tracer(__name__)
-    ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
-
-    with tracer.start_as_current_span(
-        name="enqueue", kind=trace.SpanKind.PRODUCER, context=ctx
-    ) as span:
-        utils._set_span_attributes(span, attributes)
-        utils._inject_context_to_job_meta(span, job)
-        response = func(*args, **kwargs)
-
+    span_attributes = utils._get_general_attributes(job=job, queue=queue)
+    print(*args, **kwargs)
+    response = utils._trace_instrument(
+        func=func,
+        span_name="enqueue",
+        span_kind=trace.SpanKind.PRODUCER,
+        span_attributes=span_attributes,
+        span_context_carrier=job.meta,
+        propagate=True,
+        args=args,
+        kwargs=kwargs,
+    )
     return response
 
 
 def _instrument_schedule_job(
     func: Callable, instance: Queue, args: Tuple, kwargs: Dict
 ) -> Callable:
-    """Tracing instrumentation for `Queue.schedule_job`"""
+    """Tracing instrumentation for `Queue.schedule_job`
+    - A trace instrumentation for knowing when the task
+        is scheduled, handled by scheduler later
+    """
+    job: Optional[Job] = kwargs.get("job") or (
+        args[0] if isinstance(args[0], Job) else None
+    )
     queue: Queue = instance
-
-    job: Job = kwargs.get("job") or args[0]
-    scheduled_time: datetime = kwargs.get("datetime") or args[1]
-    attributes = utils._get_general_attributes(job=job, queue=queue)
-    attributes["schedule.time"] = str(scheduled_time)
-
-    tracer = trace.get_tracer(__name__)
-    with tracer.start_as_current_span(
-        name="schedule", kind=trace.SpanKind.PRODUCER
-    ) as span:
-        utils._set_span_attributes(span, attributes)
-        utils._inject_context_to_job_meta(span, job)
-        response = func(*args, **kwargs)
-
+    scheduled_time: Optional[datetime] = kwargs.get("datetime") or (
+        args[1] if isinstance(args[1], datetime) else None
+    )
+    span_attributes = utils._get_general_attributes(job=job, queue=queue)
+    span_attributes["schedule.time"] = (
+        str(scheduled_time) if scheduled_time else "Unknown"
+    )
+    response = utils._trace_instrument(
+        func=func,
+        span_name="schedule",
+        span_kind=trace.SpanKind.PRODUCER,
+        span_attributes=span_attributes,
+        span_context_carrier=job.meta,
+        propagate=True,
+        args=args,
+        kwargs=kwargs,
+    )
     return response
 
 
@@ -125,32 +133,28 @@ def _instrument_execute_callback_factory(
     def _instrument_execute_callback(
         func: Callable, instance: Job, args: Tuple, kwargs: Dict
     ) -> Callable:
-        """Tracing instrumentation for `rq.job.Job.execute_*_callback"""
+        """Tracing instrumentation for `rq.job.Job.execute_*_callback
+        - Including success, failure, stopped callback
+        - An inner trace for knowing the execution time and status
+            for user defined callback if provided
+        """
         # Early retrun if no such callback
-        # (The case that `job.*_callback` is None)
+        # (The case that `job.*_callback` is None, user didn't provide callback)
         if not getattr(instance, callback_type):
             return
 
         job: Job = instance
-        attributes = utils._get_general_attributes(job=job)
-
-        tracer = trace.get_tracer(__name__)
-        ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
-
-        span_context_manager = tracer.start_as_current_span(
-            name=callback_type, context=ctx
+        span_attributes = utils._get_general_attributes(job=job)
+        response = utils._trace_instrument(
+            func=func,
+            span_name=callback_type,
+            span_kind=trace.SpanKind.CLIENT,
+            span_attributes=span_attributes,
+            span_context_carrier=job.meta,
+            propagate=False,
+            args=args,
+            kwargs=kwargs,
         )
-
-        span = span_context_manager.__enter__()
-        utils._set_span_attributes(span, attributes)
-        try:
-            response = func(*args, **kwargs)
-        except Exception as exc:
-            utils._set_span_error_status(span, exc)
-            raise exc
-        finally:
-            span_context_manager.__exit__(None, None, None)
-
         return response
 
     return _instrument_execute_callback
@@ -162,26 +166,27 @@ def _instrument_job_status_handler_factory(
     def _instrument_job_status_handler(
         func: Callable, instance: Job, args: Tuple, kwargs: Dict
     ):
-        """Tracing instrumentation for `rq.worker.Worker.handle_job_*"""
-        job: Job = kwargs.get("job") or args[0]
-        queue: Queue = kwargs.get("queue") or args[1]
-        attributes = utils._get_general_attributes(job=job, queue=queue)
-
-        tracer = trace.get_tracer(__name__)
-        ctx: trace.Context = TraceContextTextMapPropagator().extract(carrier=job.meta)
-
-        span_context_manager = tracer.start_as_current_span(
-            name=handler_type, context=ctx
+        """Tracing instrumentation for `rq.worker.Worker.handle_job_*`
+        - An inner trace instrumentation for knowing the executation
+            time and status for RQ maintainence job (e.g. enqueue depenents when job success)
+        """
+        job: Optional[Job] = kwargs.get("job") or (
+            args[0] if isinstance(args[0], Job) else None
         )
-        span = span_context_manager.__enter__()
-        utils._set_span_attributes(span, attributes)
-        try:
-            response = func(*args, **kwargs)
-        except Exception as exc:
-            utils._set_span_error_status(span, exc)
-        finally:
-            span_context_manager.__exit__(None, None, None)
-
+        queue: Optional[Queue] = kwargs.get("queue") or (
+            args[1] if isinstance(args[1], Queue) else None
+        )
+        span_attributes = utils._get_general_attributes(job=job, queue=queue)
+        response = utils._trace_instrument(
+            func=func,
+            span_name=handler_type,
+            span_kind=trace.SpanKind.CLIENT,
+            span_attributes=span_attributes,
+            span_context_carrier=job.meta,
+            propagate=False,
+            args=args,
+            kwargs=kwargs,
+        )
         return response
 
     return _instrument_job_status_handler

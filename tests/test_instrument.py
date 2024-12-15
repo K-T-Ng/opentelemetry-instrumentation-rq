@@ -97,7 +97,7 @@ class TestRQInstrumentor(TestBase):
         )
 
         span = spans[0]
-        self.assertEqual(span.kind, SpanKind.CONSUMER)
+        self.assertEqual(span.kind, SpanKind.CLIENT)
 
     def test_instrument_perform_with_exception(self):
         """Test instrumentation for `rq.job.Job.perform`, but
