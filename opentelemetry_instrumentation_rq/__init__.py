@@ -80,7 +80,6 @@ def _instrument__enqueue_job(
     )
     queue: Queue = instance
     span_attributes = utils._get_general_attributes(job=job, queue=queue)
-    print(*args, **kwargs)
     response = utils._trace_instrument(
         func=func,
         span_name="enqueue",
@@ -234,6 +233,7 @@ class RQInstrumentor(BaseInstrumentor):
             _instrument_execute_callback_factory("stopped_callback"),
         )
 
+        # Instrumentation for task status handler
         wrap_function_wrapper(
             "rq.worker",
             "Worker.handle_job_success",
@@ -246,11 +246,15 @@ class RQInstrumentor(BaseInstrumentor):
         )
 
     def _uninstrument(self, **kwargs):
+        unwrap(rq.worker.Worker, "handle_job_success")
+        unwrap(rq.worker.Worker, "handle_job_failure")
+
         unwrap(rq.job.Job, "execute_success_callback")
         unwrap(rq.job.Job, "execute_failure_callback")
         unwrap(rq.job.Job, "execute_stopped_callback")
 
         unwrap(rq.worker.Worker, "perform_job")
         unwrap(rq.job.Job, "perform")
+
         unwrap(rq.queue.Queue, "schedule_job")
         unwrap(rq.queue.Queue, "_enqueue_job")

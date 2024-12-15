@@ -1,25 +1,29 @@
 """Unit tests for opentelemetry_instrumentation_rq/__init__.py"""
 
 from datetime import datetime
-from typing import List
 
 import fakeredis
 import mock
 from opentelemetry import trace
-from opentelemetry.sdk.trace import Span
 from opentelemetry.test.test_base import TestBase
-from opentelemetry.trace import SpanKind
 from rq import Callback
 from rq.job import Job
 from rq.queue import Queue
+from rq.registry import StartedJobRegistry
 from rq.timeouts import UnixSignalDeathPenalty
+from rq.worker import Worker
 
 from opentelemetry_instrumentation_rq import RQInstrumentor
 from tests import tasks
 
 
 class TestRQInstrumentor(TestBase):
-    """Unit test cases for `RQInstrumentation` methods"""
+    """Unit test cases for `RQInstrumentation` methods
+
+    We only assert the call of `utils._trace_instrument` with
+    expected arguments here, the correctness of
+    `utils._trace_instrument` should be tested in `tests/test_utils.py`
+    """
 
     def setUp(self):
         """Setup before testing
@@ -32,6 +36,9 @@ class TestRQInstrumentor(TestBase):
 
         self.fakeredis = fakeredis.FakeRedis()
         self.queue = Queue(name="queue_name", connection=self.fakeredis)
+        self.worker = Worker(
+            queues=[self.queue], name="worker_name", connection=self.fakeredis
+        )
 
     def tearDown(self):
         """Teardown after testing
@@ -41,40 +48,64 @@ class TestRQInstrumentor(TestBase):
         RQInstrumentor().uninstrument()
         super().tearDown()
 
-    def test_instrument__enqueue(self):
+    def test_instrument__enqueue_job(self):
         """Test instrumentation for `rq.queue.Queue._enqueue_job`"""
-
         job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
-
         with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._get_general_attributes"
-        ) as get_general_attributes:
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
             # pylint: disable=protected-access
             self.queue._enqueue_job(job)
-            self.assertIn("traceparent", job.meta)
-            get_general_attributes.assert_called_with(job=job, queue=self.queue)
 
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if only _enqueue is triggered",
+        trace_instrument.assert_called_once_with(
+            func=mock.ANY,
+            span_name="enqueue",
+            span_kind=trace.SpanKind.PRODUCER,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=True,
+            args=mock.ANY,
+            kwargs=mock.ANY,
         )
 
-        span = spans[0]
-        self.assertEqual(span.kind, SpanKind.PRODUCER)
+    def test_instrument_schedule_job(self):
+        """Test instrumentation for `rq.queue.Queue.schedule_job`"""
+        job = Job.create(func=tasks.task_normal, id="job_id", connection=self.fakeredis)
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
+            # pylint: disable=protected-access
+            self.queue.schedule_job(job=job, datetime=datetime.now())
 
-    # def test_instrument_perform_job(self):
-    #     """Test instrumetation for `rq.worker.Worker.perform_job`"""
-    #     job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
-    #     worker = Worker(
-    #         queues=[self.queue], name="worker name", connection=self.fakeredis
-    #     )
+        trace_instrument.assert_called_once_with(
+            func=mock.ANY,
+            span_name="schedule",
+            span_kind=trace.SpanKind.PRODUCER,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=True,
+            args=mock.ANY,
+            kwargs=mock.ANY,
+        )
 
-    #     worker.perform_job(job, self.queue)
+    def test_instrument_perform_job(self):
+        """Test instrumetation for `rq.worker.Worker.perform_job`"""
+        job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
+            self.worker.perform_job(job, self.queue)
 
-    #     spans: List[Span] = self.memory_exporter.get_finished_spans()
-    #     self.assertEqual(len(spans), 3)
+        trace_instrument.assert_called_once_with(
+            func=mock.ANY,
+            span_name="perform_job",
+            span_kind=trace.SpanKind.CONSUMER,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=False,
+            args=mock.ANY,
+            kwargs=mock.ANY,
+        )
 
     def test_instrument_perform(self):
         """Test instrumentation for `rq.job.Job.perform`"""
@@ -84,70 +115,20 @@ class TestRQInstrumentor(TestBase):
         )
 
         with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._get_general_attributes"
-        ) as get_general_attributes:
-            job.perform()
-            get_general_attributes.assert_called_with(job=job)
-
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if only perform is triggered",
-        )
-
-        span = spans[0]
-        self.assertEqual(span.kind, SpanKind.CLIENT)
-
-    def test_instrument_perform_with_exception(self):
-        """Test instrumentation for `rq.job.Job.perform`, but
-        with exception within job.
-        """
-
-        job = Job.create(
-            func=tasks.task_exception, id="job_id", connection=self.fakeredis
-        )
-        job.prepare_for_execution(
-            worker_name="worker_name", pipeline=self.fakeredis.pipeline()
-        )
-
-        # 1. Should raise CustomException, as definition in `task_exception`
-        with self.assertRaises(tasks.CustomException):
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
             job.perform()
 
-        # 2. Should have one span finished
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if only perform is triggered",
+        trace_instrument.assert_called_once_with(
+            func=mock.ANY,
+            span_name="perform",
+            span_kind=trace.SpanKind.CLIENT,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=False,
+            args=mock.ANY,
+            kwargs=mock.ANY,
         )
-
-        # 3. Span statue should be ERROR
-        span = spans[0]
-        self.assertEqual(
-            span.status.status_code,
-            trace.StatusCode.ERROR,
-        )
-
-    def test_instrument_schedule_job(self):
-        """Test instrumentation for `rq.queue.Queue.schedule_job`"""
-
-        job = Job.create(
-            func=tasks.task_exception, id="job_id", connection=self.fakeredis
-        )
-        job = self.queue.schedule_job(job=job, datetime=datetime.now())
-
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if we trigger `schedule_job` directly",
-        )
-
-        span = spans[0]
-        self.assertEqual(span.name, "schedule")
-        self.assertIn("traceparent", job.meta)
 
     def test_instrument_execute_callback(self):
         """Test instrumentation for `rq.job.Job.execute_*_callback`"""
@@ -159,40 +140,45 @@ class TestRQInstrumentor(TestBase):
             on_success=Callback(tasks.success_callback),
         )
 
-        job.execute_success_callback(UnixSignalDeathPenalty, None)
-
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if we trigger `execute_succes_callback` directly",
-        )
-
-        span = spans[0]
-        self.assertEqual(span.name, "success_callback")
-
-    def test_instrument_execute_callback_with_exception(self):
-        """Test instrumentation for `rq.job.Job.execute_*_callback`, but with exception"""
-
-        job = Job.create(
-            func=tasks.task_exception,
-            id="job_id",
-            connection=self.fakeredis,
-            on_success=Callback(tasks.success_callback_exception),
-        )
-
-        with self.assertRaises(tasks.CustomException):
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
             job.execute_success_callback(UnixSignalDeathPenalty, None)
 
-        spans: List[Span] = self.memory_exporter.get_finished_spans()
-        self.assertEqual(
-            len(spans),
-            1,
-            "There should only have one span if we trigger `execute_succes_callback` directly",
+        trace_instrument.assert_called_once_with(
+            func=mock.ANY,
+            span_name="success_callback",
+            span_kind=trace.SpanKind.CLIENT,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=False,
+            args=mock.ANY,
+            kwargs=mock.ANY,
         )
 
-        span = spans[0]
-        self.assertEqual(
-            span.status.status_code,
-            trace.StatusCode.ERROR,
+    def test_instrument_job_status_handler(self):
+        """Test instrumentation for `rq.worker.Worker.handle_job_*"""
+
+        job = Job.create(
+            func=tasks.task_normal,
+            id="job_id",
+            connection=self.fakeredis,
+        )
+
+        with mock.patch(
+            "opentelemetry_instrumentation_rq.utils._trace_instrument"
+        ) as trace_instrument:
+            self.worker.handle_job_success(
+                job=job, queue=self.queue, started_job_registry=StartedJobRegistry
+            )
+
+        trace_instrument.assert_called_with(
+            func=mock.ANY,
+            span_name="handle_job_success",
+            span_kind=trace.SpanKind.CLIENT,
+            span_attributes=mock.ANY,
+            span_context_carrier=mock.ANY,
+            propagate=False,
+            args=mock.ANY,
+            kwargs=mock.ANY,
         )
