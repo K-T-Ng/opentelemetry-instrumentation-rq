@@ -63,16 +63,70 @@ class TestUtils(TestBase):
                 "Span staus should be set as ERROR",
             )
 
-    def test_inject_context_to_job_meta(self):
-        """Test injecting span context to RQ job.meta"""
-        job = Job.create(func=print, connection=self.fakeredis)
-        with self.tracer.start_as_current_span("name") as span:
-            utils._inject_context_to_job_meta(
-                span, job
-            )  # pylint: disable=protected-access
-            assert (
-                "traceparent" in job.meta
-            )  # TODO: add trace context header name as constant
+    def test__trace_instrument_normal(self):
+        """Test normal trace insturmentation flow"""
+        carrier: Dict = {}
+        utils._trace_instrument(
+            func=print,
+            span_name="Span name",
+            span_kind=trace.SpanKind.INTERNAL,
+            span_attributes={"foo": "bar"},
+            span_context_carrier=carrier,
+            propagate=False,
+            args=(),
+            kwargs={},
+        )
+
+        spans: List[Span] = self.get_finished_spans()
+        self.assertEqual(len(spans), 1)
+
+        span: Span = spans[0]
+        self.assertEqual(span.name, "Span name")
+        self.assertEqual(span.kind, trace.SpanKind.INTERNAL)
+        self.assertSpanHasAttributes(span, {"foo": "bar"})
+        self.assertDictEqual(carrier, {})
+
+    def test__trace_instrument_with_propagate(self):
+        """Test trace instrumentation with context propagation"""
+        carrier: Dict = {}
+        utils._trace_instrument(
+            func=print,
+            span_name="Span name",
+            span_kind=trace.SpanKind.INTERNAL,
+            span_attributes={"foo": "bar"},
+            span_context_carrier=carrier,
+            propagate=True,
+            args=(),
+            kwargs={},
+        )
+
+        # TODO: make traceparent as configruable constant
+        self.assertIn("traceparent", carrier)
+
+    def test__trace_instrument_exception_catching(self):
+        """Test trace instrumentation when exception happens in instrumentation function"""
+
+        def task_exception():
+            raise Exception
+
+        with (
+            mock.patch(
+                "opentelemetry_instrumentation_rq.utils._set_span_error_status"
+            ) as exception_handler,
+            self.assertRaises(Exception),
+        ):
+            utils._trace_instrument(
+                func=task_exception,
+                span_name="Span name",
+                span_kind=trace.SpanKind.INTERNAL,
+                span_attributes={"foo": "bar"},
+                span_context_carrier={},
+                propagate=False,
+                args=(),
+                kwargs={},
+            )
+
+        exception_handler.assert_called_once()
 
     def test__get_general_attributes(self):
         """Test getting general attributes from RQ elemenets"""

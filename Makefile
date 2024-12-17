@@ -8,4 +8,5 @@ style-check:
 	pre-commit run --all-files black
 
 test:
-	pytest --cov=opentelemetry_instrumentation_rq tests/
+	pytest --cov=opentelemetry_instrumentation_rq tests/unit_test
+	pytest --cov=opentelemetry_instrumentation_rq tests/integration_test
