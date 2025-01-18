@@ -1,15 +1,17 @@
 """Unit tests for opentelemetry_instrumentation_rq/instrumentor.py"""
 
-from dataclasses import dataclass
-from typing import Any, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Union
 
 import fakeredis
+from opentelemetry import trace
+from opentelemetry.semconv._incubating.attributes import messaging_attributes
 from opentelemetry.test.test_base import TestBase
 from rq.job import Job
 from rq.queue import Queue
 from rq.worker import Worker
 
-from opentelemetry_instrumentation_rq import instrumentor, utils
+from opentelemetry_instrumentation_rq import instrumentor, rq_attributes, utils
 
 
 class TestTraceInstrumentWrapper(TestBase):
@@ -26,6 +28,8 @@ class TestTraceInstrumentWrapper(TestBase):
         - Setup fake redis connection to mockup redis for rq
         """
         super().setUp()
+
+        self.fakeredis = fakeredis.FakeRedis()
 
         self.job_instance_info = utils.InstanceInfo(
             name=utils.RQElementName.JOB, type=Job
@@ -47,7 +51,12 @@ class TestTraceInstrumentWrapper(TestBase):
             name=utils.RQElementName.WORKER, position=0, type=Worker
         )
 
-        self.fakeredis = fakeredis.FakeRedis()
+        self.job = Job.create(func=print, connection=self.fakeredis, id="JOB_ID")
+        setattr(self.job, "worker_name", "WORKER_NAME")  # Patch worker name
+        self.queue = Queue(name="QUEUE_NAME", connection=self.fakeredis)
+        self.worker = Worker(
+            name="WORKER_NAME", queues=["QUEUE_NAME"], connection=self.fakeredis
+        )
 
     def tearDown(self):
         """Teardown after testing"""
@@ -107,3 +116,120 @@ class TestTraceInstrumentWrapper(TestBase):
                     test_case.name, test_case.expected_return, actual_return
                 ),
             )
+
+    def test_get_attributes(self):
+        """Test getting attributes from RQ components"""
+
+        @dataclass
+        class TestCase:
+            name: str
+            description: str
+            span_kind: trace.SpanKind
+            rq_input: Dict[utils.RQElementName, Union[Job, Queue, Worker]]
+            expected_subset: Dict[str, str]
+            expected_not_appear_keys: List[str] = field(default_factory=list)
+
+        test_cases: List[TestCase] = [
+            TestCase(
+                name="Job without worker name",
+                span_kind=trace.SpanKind.CLIENT,
+                rq_input={utils.RQElementName.JOB: self.job},
+                expected_subset={
+                    rq_attributes.JOB_ID: "JOB_ID",
+                    rq_attributes.JOB_FUNCTION: "builtins.print",
+                },
+                description="Expected to catch job id and function name",
+            ),
+            TestCase(
+                name="Job with non CONSUMER span kind",
+                span_kind=trace.SpanKind.CLIENT,
+                rq_input={utils.RQElementName.JOB: self.job},
+                expected_subset={
+                    rq_attributes.JOB_ID: "JOB_ID",
+                    rq_attributes.JOB_FUNCTION: "builtins.print",
+                },
+                expected_not_appear_keys=[
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME
+                ],
+                description="Expected to catch job id and function name only",
+            ),
+            TestCase(
+                name="Job with CONSUMER span kind",
+                span_kind=trace.SpanKind.CONSUMER,
+                rq_input={utils.RQElementName.JOB: self.job},
+                expected_subset={
+                    rq_attributes.JOB_ID: "JOB_ID",
+                    rq_attributes.JOB_FUNCTION: "builtins.print",
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: "WORKER_NAME",
+                },
+                description="Expected to catch job id, function name and worker name",
+            ),
+            TestCase(
+                name="Extract Queue Name",
+                span_kind=trace.SpanKind.CLIENT,
+                rq_input={utils.RQElementName.QUEUE: self.queue},
+                expected_subset={
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: "QUEUE_NAME",
+                },
+                description="Expected to catch queue name as destination name",
+            ),
+            TestCase(
+                name="Worker without CONSUMER span kind",
+                span_kind=trace.SpanKind.CLIENT,
+                rq_input={utils.RQElementName.WORKER: self.worker},
+                expected_subset={},
+                expected_not_appear_keys=[
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME
+                ],
+                description="Expected nothing to catch since it is NOT consumer",
+            ),
+            TestCase(
+                name="Job with CONSUMER span kind",
+                span_kind=trace.SpanKind.CONSUMER,
+                rq_input={utils.RQElementName.WORKER: self.worker},
+                expected_subset={
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: "WORKER_NAME",
+                },
+                description="Expected to catch worker name as consumer group name",
+            ),
+            TestCase(
+                name="Empty case",
+                span_kind=trace.SpanKind.CONSUMER,
+                rq_input={},
+                expected_subset={},
+                description="Don't broke the process",
+            ),
+        ]
+
+        for test_case in test_cases:
+            wrapper = instrumentor.TraceInstrumentWrapper(
+                span_kind=test_case.span_kind,
+                operation_type=Any,
+                operation_name=Any,
+                should_propagate=Any,
+                instance_info=Any,
+                argument_info_list=Any,
+            )
+
+            actual_return = wrapper.get_attributes(test_case.rq_input)
+
+            self.assertDictContainsSubset(
+                test_case.expected_subset,
+                actual_return,
+                msg="Failed test case ({}), expected: {} in {}".format(
+                    test_case.name,
+                    test_case.expected_subset,
+                    actual_return,
+                ),
+            )
+
+            for forbidden_key in test_case.expected_not_appear_keys:
+                self.assertNotIn(
+                    forbidden_key,
+                    actual_return,
+                    msg="Failed test case ({}), expected: {} not in {}".format(
+                        test_case.name,
+                        forbidden_key,
+                        actual_return,
+                    ),
+                )
