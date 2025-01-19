@@ -1,11 +1,12 @@
 """Unit tests for opentelemetry_instrumentation_rq/instrumentor.py"""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Union
+from typing import Any, Callable, Dict, List, Union
 
 import fakeredis
 import mock
 from opentelemetry import trace
+from opentelemetry.sdk.trace import Span
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
 from opentelemetry.test.test_base import TestBase
 from rq.job import Job
@@ -62,6 +63,7 @@ class TestTraceInstrumentWrapper(TestBase):
     def tearDown(self):
         """Teardown after testing"""
         self.fakeredis.close()
+        super().tearDown()
 
     def test_get_span_name(self):
         """Test generating span name"""
@@ -338,3 +340,167 @@ class TestTraceInstrumentWrapper(TestBase):
                         test_case.name, test_case.expected_return, actual_return
                     ),
                 )
+
+    def test_call(self):
+        """Test __call__ method for `TraceInstrumentWrapper`"""
+
+        def mock_normal_func(*args, **kwargs):
+            return
+
+        def mock_exception_func(*args, **kwargs):
+            raise Exception
+
+        @dataclass
+        class TestCase:
+            name: str
+            description: str
+
+            span_kind: trace.SpanKind
+            operation_type: str
+            operation_name: str
+            should_propagate: bool
+
+            expect_span_generate: bool
+            expect_span_propagate: bool
+            expect_span_exception: bool
+            expect_span_name: str
+            expect_span_kind: trace.SpanKind
+
+            mock_extract: Dict[utils.RQElementName, Union[Job, Queue, Worker]]
+            mock_call_func: Callable
+
+        test_cases: List[TestCase] = [
+            TestCase(
+                name="Skip record (Cannot get Job element)",
+                description="No span generated if we can't get Job element",
+                span_kind=trace.SpanKind.CLIENT,
+                operation_name="process",
+                operation_type="process",
+                should_propagate=False,
+                expect_span_generate=False,
+                expect_span_propagate=False,
+                expect_span_exception=False,
+                expect_span_name="",
+                expect_span_kind=trace.SpanKind.CLIENT,
+                mock_extract=[{utils.RQElementName.QUEUE: self.queue}],
+                mock_call_func=mock_normal_func,
+            ),
+            TestCase(
+                name="Span record with propagation",
+                description="Producer span should propagate context to `job.meta`",
+                span_kind=trace.SpanKind.PRODUCER,
+                operation_name="produce",
+                operation_type="send",
+                should_propagate=True,
+                expect_span_generate=True,
+                expect_span_propagate=True,
+                expect_span_exception=False,
+                expect_span_name="produce QUEUE_NAME",  # self.queue.name
+                expect_span_kind=trace.SpanKind.PRODUCER,
+                mock_extract=[
+                    {
+                        utils.RQElementName.QUEUE: self.queue,
+                        utils.RQElementName.JOB: self.job,
+                    }
+                ],
+                mock_call_func=mock_normal_func,
+            ),
+            TestCase(
+                name="Span record without propagation",
+                description="Producer span should propagate context to `job.meta`",
+                span_kind=trace.SpanKind.CONSUMER,
+                operation_name="process",
+                operation_type="process",
+                should_propagate=False,
+                expect_span_generate=True,
+                expect_span_propagate=False,
+                expect_span_exception=False,
+                expect_span_name="process QUEUE_NAME",  # self.queue.name
+                expect_span_kind=trace.SpanKind.CONSUMER,
+                mock_extract=[
+                    {
+                        utils.RQElementName.QUEUE: self.queue,
+                        utils.RQElementName.JOB: self.job,
+                        utils.RQElementName.WORKER: self.worker,
+                    }
+                ],
+                mock_call_func=mock_exception_func,
+            ),
+        ]
+
+        for test_case in test_cases:
+            wrapper = instrumentor.TraceInstrumentWrapper(
+                span_kind=test_case.span_kind,
+                operation_type=test_case.operation_type,
+                operation_name=test_case.operation_name,
+                should_propagate=test_case.should_propagate,
+                instance_info=Any,
+                argument_info_list=Any,
+            )
+
+            with mock.patch(
+                "opentelemetry_instrumentation_rq.instrumentor.TraceInstrumentWrapper.extract_rq_input",
+                side_effect=test_case.mock_extract,
+            ):
+                try:
+                    wrapper(
+                        func=test_case.mock_call_func, instance=Any, args=(), kwargs={}
+                    )
+                except Exception:
+                    pass
+
+            # We use job.meta as context carrier, check whether propagation works
+            if test_case.expect_span_propagate:
+                self.assertIn(
+                    "traceparent",
+                    self.job.meta,
+                    msg="Failed test case ({}), expected context propagate to `job.meta`".format(
+                        test_case.name
+                    ),
+                )
+
+            if test_case.expect_span_generate:
+                self.assertEqual(
+                    1,
+                    len(self.get_finished_spans()),
+                    msg="Failed test case ({}), expected one span generated".format(
+                        test_case.name
+                    ),
+                )
+
+                actual_span: Span = self.get_finished_spans()[0]
+                self.assertEqual(
+                    test_case.expect_span_name,
+                    actual_span.name,
+                    msg="Failed test case ({}), expected span name {}, actual: {}".format(
+                        test_case.name, test_case.expect_span_name, actual_span.name
+                    ),
+                )
+                self.assertEqual(
+                    test_case.expect_span_kind,
+                    actual_span.kind,
+                    msg="Failed test case ({}), expected span kind {}, actual: {}".format(
+                        test_case.name, test_case.expect_span_kind, actual_span.kind
+                    ),
+                )
+                if test_case.expect_span_exception:
+                    self.assertEqual(
+                        trace.StatusCode.ERROR,
+                        actual_span.status.status_code,
+                        msg="Failed test case ({}), expected span ERROR".format(
+                            test_case.name
+                        ),
+                    )
+
+            else:
+                self.assertEqual(
+                    len(self.get_finished_spans()),
+                    0,
+                    msg="Failed test case ({}), expected NO span generated".format(
+                        test_case.name
+                    ),
+                )
+
+            # Reset spans before next test case
+            super().tearDown()
+            super().setUp()

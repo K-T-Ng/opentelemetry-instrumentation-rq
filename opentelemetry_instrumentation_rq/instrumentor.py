@@ -1,10 +1,11 @@
 """Trace instrumentor for creating span & setting span attributes"""
 
 import socket
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from opentelemetry import trace
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from rq.job import Job
 from rq.queue import Queue
 from rq.worker import Worker
@@ -29,6 +30,7 @@ class TraceInstrumentWrapper:
         argument_info_list: List[utils.ArgumentInfo],
     ):
         self.tracer = trace.get_tracer(__name__)
+        self.propagator = TraceContextTextMapPropagator()
 
         self.span_kind = span_kind
         self.operation_type = operation_type
@@ -128,3 +130,43 @@ class TraceInstrumentWrapper:
         rq_input[instance_info.name] = instance
 
         return rq_input
+
+    def __call__(self, func: Callable, instance: Any, args: Tuple, kwargs: Dict):
+        """Trace instrumentaion"""
+        # Extract RQ elements
+        rq_input = self.extract_rq_input(
+            instance, args, kwargs, self.instance_info, self.argument_info_list
+        )
+        job: Job = rq_input.get(utils.RQElementName.JOB, None)
+        queue: Queue = rq_input.get(utils.RQElementName.QUEUE, None)
+
+        # Early return if we can't get RQ Job element
+        if not job:
+            return func(*args, **kwargs)
+
+        # Prepare metadata and parent context
+        queue_name: str = queue.name if queue else ""
+        span_name: str = self.get_span_name(queue_name)
+        span_attributes: Dict[str, str] = self.get_attributes(rq_input)
+
+        parent_context: trace.Context = self.propagator.extract(carrier=job.meta)
+        span_context_manager = self.tracer.start_as_current_span(
+            name=span_name, kind=self.span_kind, context=parent_context
+        )
+
+        # Span record
+        span = span_context_manager.__enter__()
+        if self.should_propagate:
+            self.propagator.inject(job.meta)
+        if span.is_recording():
+            span.set_attributes(span_attributes)
+        try:
+            response = func(*args, **kwargs)
+        except Exception as exc:
+            if span.is_recording():
+                span.set_status(trace.Status(trace.StatusCode.ERROR))
+                span.record_exception(exception=exc)
+        finally:
+            span_context_manager.__exit__(None, None, None)
+
+        return response
