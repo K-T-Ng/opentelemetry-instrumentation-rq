@@ -1,7 +1,7 @@
 """Trace instrumentor for creating span & setting span attributes"""
 
 import socket
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from opentelemetry import trace
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
@@ -88,3 +88,43 @@ class TraceInstrumentWrapper:
             attributes[messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME] = worker.name
 
         return attributes
+
+    def extract_rq_input(
+        self,
+        instance: Union[Job, Queue, Worker],
+        args: Tuple,
+        kwargs: Dict,
+        instance_info: utils.InstanceInfo,
+        argument_infos: List[utils.ArgumentInfo],
+    ) -> Dict[utils.RQElementName, Union[Job, Queue, Worker]]:
+        """Extract RQ elements from RQ input within wrapped function
+
+        Args:
+            instance (Union[Job, Queue, Worker]): Wrapped instance, one of Job, Queue or Worker
+            args (Tuple): Non-keyword arguments input from RQ method
+            kwargs (Dict): Keyword arguments input from RQ method
+            instance_info (utils.InstanceInfo): Wrapped instance info
+            argument_infos (List[utils.ArgumentInfo]): Interested arguments info to be extract
+
+        Returns:
+            Dict[utils.RQElementName, Union[Job, Queue, Worker]]: Extracted Job, Queue and Worker
+        """
+        rq_input: Dict[utils.RQElementName, Union[Job, Queue, Worker]] = {}
+
+        # Handle arguments from args / kwargs
+        for arg_info in argument_infos:
+            rq_element = utils._extract_value_from_input(
+                argument_name=arg_info.name,
+                argument_pos=arg_info.position,
+                argument_type=arg_info.type,
+                args=args,
+                kwargs=kwargs,
+            )
+
+            if rq_element:
+                rq_input[arg_info.name] = rq_element
+
+        # Handle arguments from instance
+        rq_input[instance_info.name] = instance
+
+        return rq_input

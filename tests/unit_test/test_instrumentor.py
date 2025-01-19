@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Union
 
 import fakeredis
+import mock
 from opentelemetry import trace
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
 from opentelemetry.test.test_base import TestBase
@@ -231,5 +232,109 @@ class TestTraceInstrumentWrapper(TestBase):
                         test_case.name,
                         forbidden_key,
                         actual_return,
+                    ),
+                )
+
+    def test_extract_rq_input(self):
+        """Test extract RQ elements from wrapped input"""
+
+        @dataclass
+        class TestCase:
+            name: str
+            description: str
+            expected_return: Dict[str, Union[Job, Queue, Worker]]
+            instance_input: Any
+            instance_info: utils.InstanceInfo
+            argument_infos: List[utils.ArgumentInfo] = field(default_factory=list)
+            mock_extract_response: List[Union[Job, Queue, Worker]] = field(
+                default_factory=list
+            )
+
+        test_cases: List[TestCase] = [
+            TestCase(
+                name="`Queue` instance, with `Job`, `Worker` argument",
+                description="Get `Job` and `Worker` from args/kwargs, then `Queue` from instance",
+                expected_return={
+                    utils.RQElementName.JOB: self.job,
+                    utils.RQElementName.QUEUE: self.queue,
+                    utils.RQElementName.WORKER: self.worker,
+                },
+                instance_input=self.queue,
+                instance_info=utils.InstanceInfo(
+                    name=utils.RQElementName.QUEUE, type=Queue
+                ),
+                argument_infos=[
+                    utils.ArgumentInfo(
+                        name=utils.RQElementName.JOB, position=0, type=Job
+                    ),
+                    utils.ArgumentInfo(
+                        name=utils.RQElementName.WORKER, position=1, type=Worker
+                    ),
+                ],
+                mock_extract_response=[self.job, self.worker],
+            ),
+            TestCase(
+                name="Only instance: `Queue`",
+                description="Get `Queue` from instance",
+                expected_return={
+                    utils.RQElementName.QUEUE: self.queue,
+                },
+                instance_input=self.queue,
+                instance_info=utils.InstanceInfo(
+                    name=utils.RQElementName.QUEUE, type=Queue
+                ),
+            ),
+            TestCase(
+                name="`Queue` instance, with `Job` argument, but cannot extract `Job` normally",
+                description="Get `Queue` from instance, skip `Job` due to we can't extract",
+                expected_return={
+                    utils.RQElementName.QUEUE: self.queue,
+                },
+                instance_input=self.queue,
+                instance_info=utils.InstanceInfo(
+                    name=utils.RQElementName.QUEUE, type=Queue
+                ),
+                argument_infos=[
+                    utils.ArgumentInfo(
+                        name=utils.RQElementName.JOB, position=0, type=Job
+                    ),
+                ],
+                mock_extract_response=[None],
+            ),
+        ]
+
+        wrapper = instrumentor.TraceInstrumentWrapper(
+            span_kind=Any,
+            operation_type=Any,
+            operation_name=Any,
+            should_propagate=Any,
+            instance_info=Any,
+            argument_info_list=Any,
+        )
+
+        for test_case in test_cases:
+            with mock.patch(
+                "opentelemetry_instrumentation_rq.utils._extract_value_from_input",
+                side_effect=test_case.mock_extract_response,
+            ):
+                actual_return = wrapper.extract_rq_input(
+                    instance=test_case.instance_input,
+                    args=Any,
+                    kwargs=Any,
+                    instance_info=test_case.instance_info,
+                    argument_infos=test_case.argument_infos,
+                )
+
+                # RQ Queue object is not comparable, we check the return diction type instead
+                expected_typemap = {
+                    k: type(v) for k, v in test_case.expected_return.items()
+                }
+                actual_typemap = {k: type(v) for k, v in actual_return.items()}
+
+                self.assertDictEqual(
+                    expected_typemap,
+                    actual_typemap,
+                    msg="Failed test case ({}), expected: {}, actual: {}".format(
+                        test_case.name, test_case.expected_return, actual_return
                     ),
                 )
