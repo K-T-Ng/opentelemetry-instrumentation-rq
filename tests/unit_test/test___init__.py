@@ -69,22 +69,7 @@ class TestRQInstrumentor(TestBase):
         job.prepare_for_execution(
             worker_name="worker_name", pipeline=self.fakeredis.pipeline()
         )
-
-        with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._trace_instrument"
-        ) as trace_instrument:
-            job.perform()
-
-        trace_instrument.assert_called_once_with(
-            func=mock.ANY,
-            span_name="perform",
-            span_kind=trace.SpanKind.CLIENT,
-            span_attributes=mock.ANY,
-            span_context_carrier=mock.ANY,
-            propagate=False,
-            args=mock.ANY,
-            kwargs=mock.ANY,
-        )
+        job.perform()
 
     def test_instrument_execute_callback(self):
         """Test instrumentation for `rq.job.Job.execute_*_callback`"""

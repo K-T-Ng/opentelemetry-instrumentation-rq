@@ -19,28 +19,6 @@ from opentelemetry_instrumentation_rq import utils
 from opentelemetry_instrumentation_rq.instrumentor import TraceInstrumentWrapper
 
 
-def _instrument_perform(
-    func: Callable, instance: Job, args: Tuple, kwargs: Dict
-) -> Callable:
-    """Tracing instrumentation for `Job.perform`
-    - An inner trace instrumentation for knowing the execution
-        time and status for user defined task
-    """
-    job: Job = instance
-    span_attributes = utils._get_general_attributes(job=job)
-    response = utils._trace_instrument(
-        func=func,
-        span_name="perform",
-        span_kind=trace.SpanKind.CLIENT,
-        span_attributes=span_attributes,
-        span_context_carrier=job.meta,
-        propagate=False,
-        args=args,
-        kwargs=kwargs,
-    )
-    return response
-
-
 def _instrument_execute_callback_factory(
     callback_type: Literal["success_callback", "failure_callback", "stopped_callback"]
 ) -> Callable:
@@ -165,10 +143,19 @@ class RQInstrumentor(BaseInstrumentor):
                 ],
             ),
         )
+
         wrap_function_wrapper(
             "rq.job",
             "Job.perform",
-            _instrument_perform,
+            TraceInstrumentWrapper(
+                span_kind=trace.SpanKind.CLIENT,
+                operation_type=MessagingOperationTypeValues.PROCESS,
+                operation_name="perform",
+                should_propagate=False,
+                should_flush=False,
+                instance_info=utils.get_instance_info(utils.RQElementName.JOB),
+                argument_info_list=[],
+            ),
         )
 
         # Instrumentation for task callback
