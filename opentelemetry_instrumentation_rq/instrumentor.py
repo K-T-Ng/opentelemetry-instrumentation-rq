@@ -26,6 +26,7 @@ class TraceInstrumentWrapper:
         operation_type: str,
         operation_name: str,
         should_propagate: bool,
+        should_flush: bool,
         instance_info: utils.InstanceInfo,
         argument_info_list: List[utils.ArgumentInfo],
     ):
@@ -37,6 +38,7 @@ class TraceInstrumentWrapper:
         self.operation_name = operation_name
 
         self.should_propagate = should_propagate
+        self.should_flush = should_flush
         self.instance_info = instance_info
         self.argument_info_list = argument_info_list
 
@@ -168,5 +170,9 @@ class TraceInstrumentWrapper:
                 span.record_exception(exception=exc)
         finally:
             span_context_manager.__exit__(None, None, None)
+
+        # Force flush before fork process exited
+        if self.should_flush:
+            trace.get_tracer_provider().force_flush()
 
         return response
