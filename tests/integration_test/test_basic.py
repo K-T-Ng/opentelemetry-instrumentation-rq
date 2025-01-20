@@ -65,7 +65,7 @@ class TestBasicUsage(TestBase):
         self.assertIn("traceparent", job.meta)
 
         perform_job_span = spans[-2]
-        self.assertEqual(perform_job_span.name, "perform_job")
+        self.assertEqual(perform_job_span.name, "consume queue_name")
         self.assertEqual(perform_job_span.kind, trace.SpanKind.CONSUMER)
         self.assertEqual(
             perform_job_span.context.trace_id, enqueue_span.context.trace_id

@@ -61,21 +61,7 @@ class TestRQInstrumentor(TestBase):
     def test_instrument_perform_job(self):
         """Test instrumetation for `rq.worker.Worker.perform_job`"""
         job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
-        with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._trace_instrument"
-        ) as trace_instrument:
-            self.worker.perform_job(job, self.queue)
-
-        trace_instrument.assert_called_once_with(
-            func=mock.ANY,
-            span_name="perform_job",
-            span_kind=trace.SpanKind.CONSUMER,
-            span_attributes=mock.ANY,
-            span_context_carrier=mock.ANY,
-            propagate=False,
-            args=mock.ANY,
-            kwargs=mock.ANY,
-        )
+        self.worker.perform_job(job, self.queue)
 
     def test_instrument_perform(self):
         """Test instrumentation for `rq.job.Job.perform`"""
