@@ -72,31 +72,6 @@ def _instrument_perform(
     return response
 
 
-def _instrument__enqueue_job(
-    func: Callable, instance: Queue, args: Tuple, kwargs: Dict
-) -> Callable:
-    """Tracing instrumentation for `Queue._enqueue_job`
-    - A trace instrumentation for knowing when the task
-        is enqueued to Redis
-    """
-    job: Optional[Job] = kwargs.get("job") or (
-        args[0] if isinstance(args[0], Job) else None
-    )
-    queue: Queue = instance
-    span_attributes = utils._get_general_attributes(job=job, queue=queue)
-    response = utils._trace_instrument(
-        func=func,
-        span_name="enqueue",
-        span_kind=trace.SpanKind.PRODUCER,
-        span_attributes=span_attributes,
-        span_context_carrier=job.meta,
-        propagate=True,
-        args=args,
-        kwargs=kwargs,
-    )
-    return response
-
-
 def _instrument_schedule_job(
     func: Callable, instance: Queue, args: Tuple, kwargs: Dict
 ) -> Callable:
@@ -220,7 +195,19 @@ class RQInstrumentor(BaseInstrumentor):
         )
 
         wrap_function_wrapper(
-            "rq.queue", "Queue.schedule_job", _instrument_schedule_job
+            "rq.queue",
+            "Queue.schedule_job",
+            TraceInstrumentWrapper(
+                span_kind=trace.SpanKind.PRODUCER,
+                operation_type=MessagingOperationTypeValues.CREATE,
+                operation_name="schedule",
+                should_propagate=True,
+                should_flush=False,
+                instance_info=utils.get_instance_info(utils.RQElementName.QUEUE),
+                argument_info_list=[
+                    utils.get_argument_info(utils.RQElementName.JOB, 0)
+                ],
+            ),
         )
 
         # Instrumentation for task consumer

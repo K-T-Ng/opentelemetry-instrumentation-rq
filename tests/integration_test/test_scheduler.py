@@ -64,7 +64,7 @@ class TestScheduledJob(TestBase):
         self.assertEqual(len(spans), 5)
 
         schedule_span = spans[-1]
-        self.assertEqual(schedule_span.name, "schedule")
+        self.assertEqual(schedule_span.name, "schedule queue_name")
         self.assertEqual(schedule_span.kind, trace.SpanKind.PRODUCER)
 
         enqueue_span = spans[-2]
@@ -105,7 +105,7 @@ class TestScheduledJob(TestBase):
         self.assertEqual(len(spans), 5)
 
         schedule_span = spans[-1]
-        self.assertEqual(schedule_span.name, "schedule")
+        self.assertEqual(schedule_span.name, "schedule queue_name")
         self.assertEqual(schedule_span.kind, trace.SpanKind.PRODUCER)
 
         enqueue_span = spans[-2]

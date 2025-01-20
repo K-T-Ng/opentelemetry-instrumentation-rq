@@ -51,28 +51,12 @@ class TestRQInstrumentor(TestBase):
     def test_instrument__enqueue_job(self):
         """Test instrumentation for `rq.queue.Queue._enqueue_job`"""
         job = Job.create(tasks.task_normal, id="job_id", connection=self.fakeredis)
-
         self.queue._enqueue_job(job)
 
     def test_instrument_schedule_job(self):
         """Test instrumentation for `rq.queue.Queue.schedule_job`"""
         job = Job.create(func=tasks.task_normal, id="job_id", connection=self.fakeredis)
-        with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._trace_instrument"
-        ) as trace_instrument:
-            # pylint: disable=protected-access
-            self.queue.schedule_job(job=job, datetime=datetime.now())
-
-        trace_instrument.assert_called_once_with(
-            func=mock.ANY,
-            span_name="schedule",
-            span_kind=trace.SpanKind.PRODUCER,
-            span_attributes=mock.ANY,
-            span_context_carrier=mock.ANY,
-            propagate=True,
-            args=mock.ANY,
-            kwargs=mock.ANY,
-        )
+        self.queue.schedule_job(job=job, datetime=datetime.now())
 
     def test_instrument_perform_job(self):
         """Test instrumetation for `rq.worker.Worker.perform_job`"""
