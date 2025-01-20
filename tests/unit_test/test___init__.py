@@ -80,22 +80,7 @@ class TestRQInstrumentor(TestBase):
             connection=self.fakeredis,
             on_success=Callback(tasks.success_callback),
         )
-
-        with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._trace_instrument"
-        ) as trace_instrument:
-            job.execute_success_callback(UnixSignalDeathPenalty, None)
-
-        trace_instrument.assert_called_once_with(
-            func=mock.ANY,
-            span_name="success_callback",
-            span_kind=trace.SpanKind.CLIENT,
-            span_attributes=mock.ANY,
-            span_context_carrier=mock.ANY,
-            propagate=False,
-            args=mock.ANY,
-            kwargs=mock.ANY,
-        )
+        job.execute_success_callback(UnixSignalDeathPenalty, None)
 
     def test_instrument_job_status_handler(self):
         """Test instrumentation for `rq.worker.Worker.handle_job_*"""

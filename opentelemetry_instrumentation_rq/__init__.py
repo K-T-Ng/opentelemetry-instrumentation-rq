@@ -158,11 +158,18 @@ class RQInstrumentor(BaseInstrumentor):
             ),
         )
 
-        # Instrumentation for task callback
         wrap_function_wrapper(
             "rq.job",
             "Job.execute_success_callback",
-            _instrument_execute_callback_factory("success_callback"),
+            TraceInstrumentWrapper(
+                span_kind=trace.SpanKind.CLIENT,
+                operation_type=MessagingOperationTypeValues.PROCESS,
+                operation_name="success_callback",
+                should_propagate=False,
+                should_flush=False,
+                instance_info=utils.get_instance_info(utils.RQElementName.JOB),
+                argument_info_list=[],
+            ),
         )
         wrap_function_wrapper(
             "rq.job",

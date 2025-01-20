@@ -142,8 +142,13 @@ class TraceInstrumentWrapper:
         job: Job = rq_input.get(utils.RQElementName.JOB, None)
         queue: Queue = rq_input.get(utils.RQElementName.QUEUE, None)
 
-        # Early return if we can't get RQ Job element
-        if not job:
+        # Early return if we can't
+        # (1) Get Job Element
+        # (2) When handling the outer layer of callback hook, but no such hook user given
+        if not job or (
+            "callback" in self.operation_name
+            and not getattr(instance, self.operation_name)
+        ):
             return func(*args, **kwargs)
 
         # Prepare metadata and parent context
