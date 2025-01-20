@@ -106,6 +106,7 @@ class TestTraceInstrumentWrapper(TestBase):
                 operation_type=Any,
                 operation_name=test_case.operation_name,
                 should_propagate=Any,
+                should_flush=Any,
                 instance_info=Any,
                 argument_info_list=Any,
             )
@@ -210,6 +211,7 @@ class TestTraceInstrumentWrapper(TestBase):
                 operation_type=Any,
                 operation_name=Any,
                 should_propagate=Any,
+                should_flush=Any,
                 instance_info=Any,
                 argument_info_list=Any,
             )
@@ -310,6 +312,7 @@ class TestTraceInstrumentWrapper(TestBase):
             operation_type=Any,
             operation_name=Any,
             should_propagate=Any,
+            should_flush=Any,
             instance_info=Any,
             argument_info_list=Any,
         )
@@ -434,6 +437,7 @@ class TestTraceInstrumentWrapper(TestBase):
                 operation_type=test_case.operation_type,
                 operation_name=test_case.operation_name,
                 should_propagate=test_case.should_propagate,
+                should_flush=Any,
                 instance_info=Any,
                 argument_info_list=Any,
             )

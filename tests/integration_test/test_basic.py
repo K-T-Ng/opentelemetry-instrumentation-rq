@@ -60,7 +60,7 @@ class TestBasicUsage(TestBase):
         self.assertEqual(len(spans), 4)
 
         enqueue_span = spans[-1]
-        self.assertEqual(enqueue_span.name, "enqueue")
+        self.assertEqual(enqueue_span.name, "publish queue_name")
         self.assertEqual(enqueue_span.kind, trace.SpanKind.PRODUCER)
         self.assertIn("traceparent", job.meta)
 

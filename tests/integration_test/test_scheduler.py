@@ -68,7 +68,7 @@ class TestScheduledJob(TestBase):
         self.assertEqual(schedule_span.kind, trace.SpanKind.PRODUCER)
 
         enqueue_span = spans[-2]
-        self.assertEqual(enqueue_span.name, "enqueue")
+        self.assertEqual(enqueue_span.name, "publish queue_name")
         self.assertEqual(enqueue_span.context.trace_id, schedule_span.context.trace_id)
 
         perform_job_span = spans[-3]
@@ -109,7 +109,7 @@ class TestScheduledJob(TestBase):
         self.assertEqual(schedule_span.kind, trace.SpanKind.PRODUCER)
 
         enqueue_span = spans[-2]
-        self.assertEqual(enqueue_span.name, "enqueue")
+        self.assertEqual(enqueue_span.name, "publish queue_name")
         self.assertEqual(enqueue_span.context.trace_id, schedule_span.context.trace_id)
 
         perform_job_span = spans[-3]

@@ -9,12 +9,16 @@ import rq.queue
 from opentelemetry import trace
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.instrumentation.utils import unwrap
+from opentelemetry.semconv._incubating.attributes.messaging_attributes import (
+    MessagingOperationTypeValues,
+)
 from rq.job import Job
 from rq.queue import Queue
 from rq.worker import Worker
 from wrapt import wrap_function_wrapper
 
 from opentelemetry_instrumentation_rq import utils
+from opentelemetry_instrumentation_rq.instrumentor import TraceInstrumentWrapper
 
 
 def _instrument_perform_job(
@@ -200,8 +204,21 @@ class RQInstrumentor(BaseInstrumentor):
     def _instrument(self, **kwargs):
         # Instrumentation for task producer
         wrap_function_wrapper(
-            "rq.queue", "Queue._enqueue_job", _instrument__enqueue_job
+            "rq.queue",
+            "Queue._enqueue_job",
+            TraceInstrumentWrapper(
+                span_kind=trace.SpanKind.PRODUCER,
+                operation_type=MessagingOperationTypeValues.SEND,
+                operation_name="publish",
+                should_propagate=True,
+                should_flush=False,
+                instance_info=utils.get_instance_info(utils.RQElementName.QUEUE),
+                argument_info_list=[
+                    utils.get_argument_info(utils.RQElementName.JOB, 0)
+                ],
+            ),
         )
+
         wrap_function_wrapper(
             "rq.queue", "Queue.schedule_job", _instrument_schedule_job
         )
