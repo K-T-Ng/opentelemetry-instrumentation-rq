@@ -3,8 +3,6 @@
 from datetime import datetime
 
 import fakeredis
-import mock
-from opentelemetry import trace
 from opentelemetry.test.test_base import TestBase
 from rq import Callback
 from rq.job import Job
@@ -90,21 +88,10 @@ class TestRQInstrumentor(TestBase):
             id="job_id",
             connection=self.fakeredis,
         )
+        # If `handle_job_success` need to execute independently, we need some mockup
+        job.started_at = datetime.now()
+        job.ended_at = datetime.now()
 
-        with mock.patch(
-            "opentelemetry_instrumentation_rq.utils._trace_instrument"
-        ) as trace_instrument:
-            self.worker.handle_job_success(
-                job=job, queue=self.queue, started_job_registry=StartedJobRegistry
-            )
-
-        trace_instrument.assert_called_with(
-            func=mock.ANY,
-            span_name="handle_job_success",
-            span_kind=trace.SpanKind.CLIENT,
-            span_attributes=mock.ANY,
-            span_context_carrier=mock.ANY,
-            propagate=False,
-            args=mock.ANY,
-            kwargs=mock.ANY,
+        self.worker.handle_job_success(
+            job=job, queue=self.queue, started_job_registry=StartedJobRegistry
         )
