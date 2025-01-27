@@ -218,9 +218,9 @@ class TestTraceInstrumentWrapper(TestBase):
 
             actual_return = wrapper.get_attributes(test_case.rq_input)
 
-            self.assertDictContainsSubset(
-                test_case.expected_subset,
-                actual_return,
+            self.assertLessEqual(
+                test_case.expected_subset.items(),
+                actual_return.items(),
                 msg="Failed test case ({}), expected: {} in {}".format(
                     test_case.name,
                     test_case.expected_subset,
