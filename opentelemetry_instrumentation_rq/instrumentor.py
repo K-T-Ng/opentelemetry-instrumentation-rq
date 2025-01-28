@@ -139,7 +139,6 @@ class TraceInstrumentWrapper:
         rq_input = self.extract_rq_input(
             instance, args, kwargs, self.instance_info, self.argument_info_list
         )
-        print(func.__name__, rq_input)
         job: Job = rq_input.get(utils.RQElementName.JOB, None)
         queue: Queue = rq_input.get(utils.RQElementName.QUEUE, None)
 
