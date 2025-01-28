@@ -118,7 +118,7 @@ class TraceInstrumentWrapper:
         # Handle arguments from args / kwargs
         for arg_info in argument_infos:
             rq_element = utils._extract_value_from_input(
-                argument_name=arg_info.name,
+                argument_name=arg_info.name.value,
                 argument_pos=arg_info.position,
                 argument_type=arg_info.type,
                 args=args,
@@ -139,6 +139,7 @@ class TraceInstrumentWrapper:
         rq_input = self.extract_rq_input(
             instance, args, kwargs, self.instance_info, self.argument_info_list
         )
+        print(func.__name__, rq_input)
         job: Job = rq_input.get(utils.RQElementName.JOB, None)
         queue: Queue = rq_input.get(utils.RQElementName.QUEUE, None)
 
