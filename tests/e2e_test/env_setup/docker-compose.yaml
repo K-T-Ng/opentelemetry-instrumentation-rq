@@ -1,0 +1,34 @@
+services:
+  jaeger-all-in-one:
+    image: jaegertracing/jaeger:2.2.0
+    container_name: jaeger-all-in-one
+    environment:
+      - ADMIN_HTTP_HOST_PORT=:16687
+      - SPAN_STORAGE_TYPE=memory
+    ports:
+      - 4317
+      - 4318
+      - 16686:16686
+    networks:
+      - observability-backend
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.106.1
+    container_name: otel-collector
+    ports:
+      - 4317:4317
+      - 4318:4318
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/config.yaml
+    command: ["--config", "/etc/otel/config.yaml"]
+    networks:
+      - observability-backend
+
+  redis:
+    image: redis:alpine3.20
+    container_name: redis
+    ports:
+      - 6379:6379
+
+networks:
+  observability-backend:
