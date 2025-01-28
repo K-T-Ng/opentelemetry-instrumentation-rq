@@ -30,7 +30,7 @@ class RQInstrumentor(BaseInstrumentor):
             "Queue._enqueue_job",
             TraceInstrumentWrapper(
                 span_kind=trace.SpanKind.PRODUCER,
-                operation_type=MessagingOperationTypeValues.SEND,
+                operation_type=MessagingOperationTypeValues.SEND.value,
                 operation_name="publish",
                 should_propagate=True,
                 should_flush=False,
@@ -46,7 +46,7 @@ class RQInstrumentor(BaseInstrumentor):
             "Queue.schedule_job",
             TraceInstrumentWrapper(
                 span_kind=trace.SpanKind.PRODUCER,
-                operation_type=MessagingOperationTypeValues.CREATE,
+                operation_type=MessagingOperationTypeValues.CREATE.value,
                 operation_name="schedule",
                 should_propagate=True,
                 should_flush=False,
@@ -63,7 +63,7 @@ class RQInstrumentor(BaseInstrumentor):
             "Worker.perform_job",
             TraceInstrumentWrapper(
                 span_kind=trace.SpanKind.CONSUMER,
-                operation_type=MessagingOperationTypeValues.PROCESS,
+                operation_type=MessagingOperationTypeValues.PROCESS.value,
                 operation_name="consume",
                 should_propagate=False,
                 should_flush=True,
@@ -80,7 +80,7 @@ class RQInstrumentor(BaseInstrumentor):
             "Job.perform",
             TraceInstrumentWrapper(
                 span_kind=trace.SpanKind.CLIENT,
-                operation_type=MessagingOperationTypeValues.PROCESS,
+                operation_type=MessagingOperationTypeValues.PROCESS.value,
                 operation_name="perform",
                 should_propagate=False,
                 should_flush=False,
@@ -94,7 +94,7 @@ class RQInstrumentor(BaseInstrumentor):
             "Job.execute_success_callback",
             TraceInstrumentWrapper(
                 span_kind=trace.SpanKind.CLIENT,
-                operation_type=MessagingOperationTypeValues.PROCESS,
+                operation_type=MessagingOperationTypeValues.PROCESS.value,
                 operation_name="success_callback",
                 should_propagate=False,
                 should_flush=False,
