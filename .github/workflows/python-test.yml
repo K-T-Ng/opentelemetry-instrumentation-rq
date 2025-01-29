@@ -66,6 +66,7 @@ jobs:
         run: |
           python -m tests.e2e_test.simulator.worker &
           WORKER_PID=$!
+          echo "WORKER_PID=$!" >> $GITHUB_ENV
           pytest --cov=opentelemetry_instrumentation_rq tests/e2e_test
       - name: Shutdown Worker, Redis, OpenTelemetry Collector and Jaeger
         if: ${{ always() }}
