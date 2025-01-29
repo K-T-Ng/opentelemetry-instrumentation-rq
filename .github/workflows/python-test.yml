@@ -65,7 +65,10 @@ jobs:
       - name: Run tests
         run: |
           python -m tests.e2e_test.simulator.worker &
+          WORKER_PID=$!
           pytest --cov=opentelemetry_instrumentation_rq tests/e2e_test
-      - name: Shutdown Redis, OpenTelemetry Collector and Jaeger
+      - name: Shutdown Worker, Redis, OpenTelemetry Collector and Jaeger
+        if: ${{ always() }}
         run: |
           docker compose -f tests/e2e_test/env_setup/docker-compose.yaml down --remove-orphans
+          kill $WORKER_PID
