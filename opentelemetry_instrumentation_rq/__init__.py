@@ -65,7 +65,7 @@ class RQInstrumentor(BaseInstrumentor):
                 span_kind=trace.SpanKind.CONSUMER,
                 operation_type=MessagingOperationTypeValues.PROCESS.value,
                 operation_name="consume",
-                should_propagate=False,
+                should_propagate=True,
                 should_flush=True,
                 instance_info=utils.get_instance_info(utils.RQElementName.WORKER),
                 argument_info_list=[
