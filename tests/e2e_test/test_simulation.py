@@ -252,7 +252,9 @@ def get_callback_usage_task_normal_callback_exception() -> (
 
     def enqueue(queue: Queue):
         queue.enqueue(
-            tasks.task_normal, on_success=Callback(tasks.success_callback_exception)
+            tasks.task_normal,
+            on_success=Callback(tasks.success_callback_exception),
+            on_failure=Callback(tasks.failure_callback),
         )
 
     return TestCase(
@@ -304,6 +306,16 @@ def get_callback_usage_task_normal_callback_exception() -> (
                 },
             ),
             ExpectSpan(
+                name="failure_callback",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
                 name=f"handle_job_failure {QUEUE_NAME}",
                 kind=trace.SpanKind.CLIENT,
                 status=trace.StatusCode.OK,
@@ -311,16 +323,6 @@ def get_callback_usage_task_normal_callback_exception() -> (
                     messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
                     messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_failure",
                     messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
-                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
-                },
-            ),
-            ExpectSpan(
-                name="failure_callback",
-                kind=trace.SpanKind.CLIENT,
-                status=trace.StatusCode.OK,
-                attributes={
-                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
-                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
                     rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
                 },
             ),
@@ -337,7 +339,7 @@ def get_callback_usage_task_exception_callback_success() -> (
     """
 
     def enqueue(queue: Queue):
-        queue.enqueue(tasks.task_exception, on_success=Callback(tasks.failure_callback))
+        queue.enqueue(tasks.task_exception, on_failure=Callback(tasks.failure_callback))
 
     return TestCase(
         name="Callback usage: Task Exception and Callback normal",
@@ -378,6 +380,16 @@ def get_callback_usage_task_exception_callback_success() -> (
                 },
             ),
             ExpectSpan(
+                name="failure_callback",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
+                },
+            ),
+            ExpectSpan(
                 name=f"handle_job_failure {QUEUE_NAME}",
                 kind=trace.SpanKind.CLIENT,
                 status=trace.StatusCode.OK,
@@ -385,16 +397,6 @@ def get_callback_usage_task_exception_callback_success() -> (
                     messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
                     messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_failure",
                     messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
-                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
-                },
-            ),
-            ExpectSpan(
-                name="failure_callback",
-                kind=trace.SpanKind.CLIENT,
-                status=trace.StatusCode.OK,
-                attributes={
-                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
-                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
                     rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
                 },
             ),
@@ -412,7 +414,7 @@ def get_callback_usage_task_exception_callback_failure() -> (
 
     def enqueue(queue: Queue):
         queue.enqueue(
-            tasks.task_exception, on_success=Callback(tasks.failure_callback_exception)
+            tasks.task_exception, on_failure=Callback(tasks.failure_callback_exception)
         )
 
     return TestCase(
@@ -454,6 +456,16 @@ def get_callback_usage_task_exception_callback_failure() -> (
                 },
             ),
             ExpectSpan(
+                name="failure_callback",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.ERROR,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
+                },
+            ),
+            ExpectSpan(
                 name=f"handle_job_failure {QUEUE_NAME}",
                 kind=trace.SpanKind.CLIENT,
                 status=trace.StatusCode.OK,
@@ -461,16 +473,6 @@ def get_callback_usage_task_exception_callback_failure() -> (
                     messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
                     messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_failure",
                     messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
-                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
-                },
-            ),
-            ExpectSpan(
-                name="failure_callback",
-                kind=trace.SpanKind.CLIENT,
-                status=trace.StatusCode.ERROR,
-                attributes={
-                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
-                    messaging_attributes.MESSAGING_OPERATION_NAME: "failure_callback",
                     rq_attributes.JOB_FUNCTION: "tests.tasks.task_exception",
                 },
             ),
@@ -532,6 +534,149 @@ def get_callback_usage_stopped_callback() -> TestCase:  # pylint: disable=line-t
     )
 
 
+def get_scheduler_usage_enqueue_in() -> TestCase:  # pylint: disable=line-too-long
+    """Generate test case for Scheduler usage: using enqueue_in method"""
+
+    def enqueue(queue: Queue):
+        queue.enqueue_in(time_delta=timedelta(seconds=3), func=tasks.task_normal)
+        time.sleep(3)
+
+    return TestCase(
+        name="Scheduler usage: enqueue_in",
+        description="Schedule task using Queue.enqueue_in",
+        producer_call=enqueue,
+        expect_span_list=[
+            ExpectSpan(
+                name=f"schedule {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.CREATE.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "schedule",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"publish {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.SEND.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "publish",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"consume {QUEUE_NAME}",
+                kind=trace.SpanKind.CONSUMER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "consume",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: WORKER_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name="perform",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "perform",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"handle_job_success {QUEUE_NAME}",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_success",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+        ],
+    )
+
+
+def get_scheduler_usage_enqueue_at() -> TestCase:  # pylint: disable=line-too-long
+    """Generate test case for Scheduler usage: using enqueue_at method"""
+
+    def enqueue(queue: Queue):
+        enqueue_at = datetime.now() + timedelta(seconds=3)
+        queue.enqueue_at(datetime=enqueue_at, f=tasks.task_normal)
+        time.sleep(3)
+
+    return TestCase(
+        name="Scheduler usage: enqueue_at",
+        description="Schedule task using Queue.enqueue_at",
+        producer_call=enqueue,
+        expect_span_list=[
+            ExpectSpan(
+                name=f"schedule {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.CREATE.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "schedule",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"publish {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.SEND.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "publish",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"consume {QUEUE_NAME}",
+                kind=trace.SpanKind.CONSUMER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "consume",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: WORKER_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name="perform",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "perform",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"handle_job_success {QUEUE_NAME}",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_success",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+        ],
+    )
+
+
 TEST_CASES: List[TestCase] = [
     get_basic_usage_task_normal_case(),
     get_basic_usage_task_exception_case(),
@@ -540,6 +685,8 @@ TEST_CASES: List[TestCase] = [
     get_callback_usage_task_exception_callback_success(),
     get_callback_usage_task_exception_callback_failure(),
     get_callback_usage_stopped_callback(),
+    get_scheduler_usage_enqueue_in(),
+    get_scheduler_usage_enqueue_at(),
 ]
 
 
@@ -567,15 +714,16 @@ class TestExpectSpanInfo(TestBase):
         )
 
         response_json = response.json()
-        import json
-
-        with open("temp.json", "w") as f:
-            f.write(json.dumps(response_json))
         trace_data = V1TraceData.model_validate(response_json.get("result"))
-
         response_spans = trace_data.resource_spans
+
+        def get_span_unix(span: V1Span):
+            return span.start_time_unix_nano
+
         response_spans.sort(
-            key=lambda rs: rs.scope_spans[0].spans[0].start_time_unix_nano
+            key=lambda rs: get_span_unix(
+                min(rs.scope_spans[0].spans, key=get_span_unix)
+            )
         )
 
         span_datas: List[List[V1Span]] = []
@@ -592,13 +740,20 @@ class TestExpectSpanInfo(TestBase):
             test_case.producer_call(self.queue)
 
         # Get spans from Jaeger
-        time.sleep(20)
+        time.sleep(15)
         span_datas = self.get_spans()
 
         # Check spans
         for test_case, actual_spans in zip(TEST_CASES, span_datas):
             expect_spans = test_case.expect_span_list
 
+            self.assertEqual(
+                len(expect_spans),
+                len(actual_spans),
+                msg="Failed test case: {}, expect number of spans: {}, got {}".format(
+                    test_case.name, len(expect_spans), len(actual_spans)
+                ),
+            )
             for expect, actual in zip(expect_spans, actual_spans):
                 self.assertEqual(
                     expect.name,
