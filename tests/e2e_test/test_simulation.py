@@ -1,20 +1,21 @@
-from typing import Callable, Dict, List
-from datetime import datetime, timedelta, timezone
 import time
+from datetime import datetime, timedelta, timezone
+from typing import Callable, Dict, List
+
 import redis
 import requests
 from opentelemetry import trace
-from opentelemetry.test.test_base import TestBase
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
 from opentelemetry.semconv._incubating.attributes.messaging_attributes import (
     MessagingOperationTypeValues,
 )
+from opentelemetry.test.test_base import TestBase
 from pydantic import BaseModel
 from rq import Queue
 
 from opentelemetry_instrumentation_rq import rq_attributes
 from tests import tasks
-from tests.e2e_test.model import V1TraceData, V1Span
+from tests.e2e_test.model import V1Span, V1TraceData
 from tests.e2e_test.simulator.otel_setup import initialize
 
 QUEUE_NAME = "test_queue"
@@ -37,7 +38,7 @@ class TestCase(BaseModel):
 def get_basic_usage_task_normal_case() -> TestCase:
 
     def enqueue(queue: Queue):
-        job = queue.enqueue(tasks.task_normal)
+        queue.enqueue(tasks.task_normal)
 
     return TestCase(
         name="Basic usage: Task Normal",
@@ -66,7 +67,7 @@ def get_basic_usage_task_normal_case() -> TestCase:
                 },
             ),
             ExpectSpan(
-                name=f"perform",
+                name="perform",
                 kind=trace.SpanKind.CLIENT,
                 attributes={
                     messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
@@ -99,7 +100,7 @@ class TestExpectSpanInfo(TestBase):
 
         self.redis = redis.Redis(host="localhost", port=6379)
         self.queue = Queue(name=QUEUE_NAME, connection=self.redis)
-    
+
     def get_spans(self) -> List[List[V1Span]]:
 
         now = datetime.now(timezone.utc)
@@ -111,13 +112,13 @@ class TestExpectSpanInfo(TestBase):
                 "query.service_name": "rq-instrumentation",
                 "query.start_time_min": prev.isoformat(),
                 "query.start_time_max": now.isoformat(),
-            }
+            },
         )
 
         response_json = response.json()
         trace_data = V1TraceData.model_validate(response_json.get("result"))
 
-        #TODO: Sort by time if needed
+        # TODO: Sort by time if needed
         span_datas: List[List[V1Span]] = []
         for rs in trace_data.resource_spans:
             spans = rs.scope_spans[0].spans
@@ -125,7 +126,6 @@ class TestExpectSpanInfo(TestBase):
             span_datas.append(spans)
 
         return span_datas
-
 
     def test_simulation(self):
         # Produce Jobs
@@ -145,26 +145,23 @@ class TestExpectSpanInfo(TestBase):
                     expect.name,
                     actual.name,
                     msg="Failed test case: {}, expect span name: {}, got: {}".format(
-                        test_case.name,
-                        expect.name,
-                        actual.name
-                    )
+                        test_case.name, expect.name, actual.name
+                    ),
                 )
                 self.assertEqual(
                     expect.kind.value,
-                    actual.kind-1,
+                    actual.kind - 1,
                     msg="Failed test case: {}, expect span kind: {}, got: {}".format(
-                        test_case.name,
-                        expect.kind,
-                        actual.kind
-                    )
+                        test_case.name, expect.kind, actual.kind
+                    ),
                 )
                 self.assertLessEqual(
                     expect.attributes.items(),
-                    {attr.key: attr.value["stringValue"] for attr in actual.attributes}.items(),
+                    {
+                        attr.key: attr.value["stringValue"]
+                        for attr in actual.attributes
+                    }.items(),
                     msg="Failed test case: {}, expect span contains attributes: {}, got: {}".format(
-                        test_case.name,
-                        expect.attributes,
-                        actual.attributes
-                    )
+                        test_case.name, expect.attributes, actual.attributes
+                    ),
                 )
