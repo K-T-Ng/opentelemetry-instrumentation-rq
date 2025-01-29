@@ -58,3 +58,14 @@ jobs:
         run: |
           TAR_FILE=$(ls dist/ | grep tar)
           pip install dist/$TAR_FILE
+          pip install -r dev-requirements.txt
+      - name: Launch Redis, OpenTelemetry Collector and Jaeger
+        run: |
+          docker compose -f tests/e2e_test/env_setup/docker-compose.yaml up -d --wait
+      - name: Run tests
+        run: |
+          python -m tests.e2e_test.simulator.worker &
+          pytest --cov=opentelemetry_instrumentation_rq tests/e2e_test
+      - name: Shutdown Redis, OpenTelemetry Collector and Jaeger
+        run: |
+          docker compose -f tests/e2e_test/env_setup/docker-compose.yaml down --remove-orphans
