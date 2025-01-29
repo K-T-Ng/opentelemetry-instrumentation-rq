@@ -35,7 +35,7 @@ class TestJobCallback(TestBase):
     The following are TODO (We want to test those cases using multiple processes, need some scripting)
     - Job stopped, stopped callback OK
     - Job stopped, stopped callback ERROR, failure callback OK
-    - Job stopped, stopped callback ERROR, failure callbakc ERROR
+    - Job stopped, stopped callback ERROR, failure callback ERROR
     """
 
     def setUp(self):
