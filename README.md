@@ -6,8 +6,8 @@ This library provides an OpenTelemetry Instrumentation library for Python RQ (Re
 ## Features
 ### Currently Supported
 Automatic tracing when
-* Task producing, via `rq.queue.Queue._enqueue`
-* Task execution, via `rq.job.Job.perform`
+* Task producing, via `rq.queue.Queue._enqueue` or `rq.queue.Queue.schedule_job`
+* Task execution, via `rq.worker.Worker.perform_job`, `rq.job.Job.perform`
 * Callback function execution after a job succeeds, fails, or stops, via `rq.job.Job.execute_*_callback`
 
 ### Planned
@@ -19,8 +19,8 @@ Automatic tracing when
     - [x] Add tracing for the outer layer `rq.worker.Worker.perform_job` to visualize the execution time for the entire fork process.
     - [x] Add tracing for the inner layer `rq.job.Job.perform`.
     - [x] Add tracing for the inner layer `handle_job_*`  to visualize post-processing after job execution.
-- [ ] Improved Clarity
-    - [ ] Refine span names and attributes for better readability and understanding.
+- [x] Improved Clarity
+    - [x] Refine span names and attributes for better readability and understanding.
 - [ ] Adjust the dependencies version by testing the lower limit by github action.
 
 ## Installation

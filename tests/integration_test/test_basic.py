@@ -77,7 +77,7 @@ class TestBasicUsage(TestBase):
         self.assertEqual(perform_span.context.trace_id, enqueue_span.context.trace_id)
 
         handle_job_success_span = spans[-4]
-        self.assertEqual(handle_job_success_span.name, "handle_job_success")
+        self.assertEqual(handle_job_success_span.name, "handle_job_success queue_name")
         self.assertEqual(handle_job_success_span.kind, trace.SpanKind.CLIENT)
         self.assertEqual(
             handle_job_success_span.context.trace_id, enqueue_span.context.trace_id
@@ -104,5 +104,5 @@ class TestBasicUsage(TestBase):
         self.assertEqual(perform_span.status.status_code, trace.StatusCode.ERROR)
 
         handle_job_failure_span = spans[-4]
-        self.assertEqual(handle_job_failure_span.name, "handle_job_failure")
+        self.assertEqual(handle_job_failure_span.name, "handle_job_failure queue_name")
         self.assertEqual(handle_job_failure_span.kind, trace.SpanKind.CLIENT)

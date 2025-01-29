@@ -35,7 +35,7 @@ class TestJobCallback(TestBase):
     The following are TODO (We want to test those cases using multiple processes, need some scripting)
     - Job stopped, stopped callback OK
     - Job stopped, stopped callback ERROR, failure callback OK
-    - Job stopped, stopped callback ERROR, failure callbakc ERROR
+    - Job stopped, stopped callback ERROR, failure callback ERROR
     """
 
     def setUp(self):
@@ -185,9 +185,7 @@ class TestJobCallback(TestBase):
         failure_callback_span = spans[-4]
         self.assertEqual(failure_callback_span.name, "failure_callback")
         self.assertEqual(failure_callback_span.kind, trace.SpanKind.CLIENT)
-        self.assertEqual(
-            failure_callback_span.status.status_code, trace.StatusCode.UNSET
-        )
+        self.assertEqual(failure_callback_span.status.status_code, trace.StatusCode.OK)
         self.assertEqual(
             failure_callback_span.context.trace_id, enqueue_span.context.trace_id
         )

@@ -1,6 +1,6 @@
 services:
   jaeger-all-in-one:
-    image: jaegertracing/all-in-one:1.63.0
+    image: jaegertracing/jaeger:2.2.0
     container_name: jaeger-all-in-one
     environment:
       - ADMIN_HTTP_HOST_PORT=:16687
@@ -29,7 +29,6 @@ services:
     container_name: redis
     ports:
       - 6379:6379
-
 
 networks:
   observability-backend:
