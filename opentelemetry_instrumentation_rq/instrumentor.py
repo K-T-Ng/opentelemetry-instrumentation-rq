@@ -169,10 +169,12 @@ class TraceInstrumentWrapper:
             span.set_attributes(span_attributes)
         try:
             response = func(*args, **kwargs)
+            span.set_status(trace.Status(trace.StatusCode.OK))
         except Exception as exc:
             if span.is_recording():
                 span.set_status(trace.Status(trace.StatusCode.ERROR))
                 span.record_exception(exception=exc)
+            raise
         finally:
             span_context_manager.__exit__(None, None, None)
 

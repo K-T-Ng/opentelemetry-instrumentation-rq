@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Any, List, Optional
 
+from opentelemetry import trace
 from pydantic import BaseModel, Field
 
 
@@ -13,6 +14,14 @@ class V1SpanKind(Enum):
     SPAN_KIND_CLIENT = 3
     SPAN_KIND_PRODUCER = 4
     SPAN_KIND_CONSUMER = 5
+
+
+class V1Status(BaseModel):
+    message: str = ""
+    code: trace.StatusCode = trace.StatusCode.UNSET
+
+    class Config:
+        use_enum_values = True
 
 
 class V1KeyValue(BaseModel):
@@ -29,6 +38,7 @@ class V1Span(BaseModel):
     start_time_unix_nano: int = Field(alias="startTimeUnixNano")
     end_time_unix_nano: int = Field(alias="endTimeUnixNano")
     attributes: List[V1KeyValue] = []
+    status: V1Status
 
     class Config:
         use_enum_values = True
