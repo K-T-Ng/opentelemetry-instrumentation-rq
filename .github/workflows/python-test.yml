@@ -72,4 +72,6 @@ jobs:
         if: ${{ always() }}
         run: |
           docker compose -f tests/e2e_test/env_setup/docker-compose.yaml down --remove-orphans
+          ps aux | grep $WORKER_PID
           kill $WORKER_PID
+          ps aux | grep $WORKER_PID
