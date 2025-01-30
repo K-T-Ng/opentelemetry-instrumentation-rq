@@ -32,7 +32,7 @@ jobs:
         run: |
           pip install -r requirements/pkg-requirements.txt
           pip install -r requirements/test-requirements.txt
-          pip install -Iv rq=={{ matrix.rq-version }}
+          pip install -Iv rq==${{ matrix.rq-version }}
       - name: Launch Redis, OpenTelemetry Collector and Jaeger
         run: |
           docker compose -f tests/e2e_test/env_setup/docker-compose.yaml up -d --wait
