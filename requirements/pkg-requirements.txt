@@ -1,4 +1,4 @@
+rq>=1.15
 opentelemetry-api~=1.28
 opentelemetry-sdk~=1.28
 opentelemetry-instrumentation==0.50b0
-rq>=2.0.0

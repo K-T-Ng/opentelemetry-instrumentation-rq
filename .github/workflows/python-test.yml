@@ -35,7 +35,7 @@ jobs:
           path: dist/
 
   test:
-    name: Test
+    name: End to end testing
     runs-on: ubuntu-latest
     needs:
       - build
@@ -58,7 +58,7 @@ jobs:
         run: |
           TAR_FILE=$(ls dist/ | grep tar)
           pip install dist/$TAR_FILE
-          pip install -r dev-requirements.txt
+          pip install -r requirements/test-requirements.txt
       - name: Launch Redis, OpenTelemetry Collector and Jaeger
         run: |
           docker compose -f tests/e2e_test/env_setup/docker-compose.yaml up -d --wait

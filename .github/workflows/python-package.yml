@@ -33,8 +33,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r dev-requirements.txt
+        pip install -r requirements/pkg-requirements.txt
+        pip install -r requirements/lint-requirements.txt
+        pip install -r requirements/test-requirements.txt
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -44,4 +45,3 @@ jobs:
     - name: Test with pytest
       run: |
         pytest --cov=opentelemetry_instrumentation_rq tests/unit_test
-        pytest --cov=opentelemetry_instrumentation_rq tests/integration_test

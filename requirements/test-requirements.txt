@@ -1,0 +1,7 @@
+fakeredis==2.26.1
+mock==5.1.0
+opentelemetry-exporter-otlp~=1.28
+opentelemetry-test-utils==0.50b0
+pydantic~=2.10
+pytest==8.3.3
+pytest-cov==6.0.0
