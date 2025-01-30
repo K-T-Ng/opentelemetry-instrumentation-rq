@@ -21,7 +21,7 @@ Automatic tracing when
     - [x] Add tracing for the inner layer `handle_job_*`  to visualize post-processing after job execution.
 - [x] Improved Clarity
     - [x] Refine span names and attributes for better readability and understanding.
-- [ ] Adjust the dependencies version by testing the lower limit by github action.
+- [x] Adjust the dependencies version by testing the lower limit by github action.
 
 ## Installation
 Install this package with `pip`:
