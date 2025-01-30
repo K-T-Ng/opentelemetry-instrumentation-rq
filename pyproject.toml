@@ -4,23 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "opentelemetry_instrumentation_rq"
-version = "0.0.7"
+version = "0.1.0"
 authors = [
   { name="K-T-Ng", email="l19so18h13k10@gmail.com" },
 ]
 description = "OpenTelemetry instrumentation for python RQ library"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
-  "rq>=2.0.0",
+  "rq>=1.15",
   "opentelemetry-api ~= 1.28",
   "opentelemetry-sdk ~= 1.28",
   "opentelemetry-instrumentation == 0.50b0"
 ]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
-    "Development Status :: 1 - Planning",
+    "Development Status :: 2 - Pre-Alpha",
     "Operating System :: POSIX",
     "Operating System :: Unix"
 ]
