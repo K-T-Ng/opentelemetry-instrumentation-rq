@@ -4,4 +4,4 @@ opentelemetry-exporter-otlp~=1.28
 opentelemetry-test-utils==0.50b0
 pydantic~=2.10
 pytest==8.3.3
-pytest-cov==6.0.0
+pytest-cov==5.0.0
