@@ -9,4 +9,8 @@ style-check:
 
 test:
 	pytest --cov=opentelemetry_instrumentation_rq tests/unit_test
-	pytest --cov=opentelemetry_instrumentation_rq tests/integration_test
+
+e2e_test:
+	docker compose -f tests/e2e_test/env_setup/docker-compose.yaml down --remove-orphans
+	docker compose -f tests/e2e_test/env_setup/docker-compose.yaml up -d --wait
+	pytest --cov=opentelemetry_instrumentation_rq tests/e2e_test

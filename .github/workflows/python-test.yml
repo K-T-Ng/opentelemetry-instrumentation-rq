@@ -1,0 +1,51 @@
+# This workflow will build Python Package and run end-to-end testing for simulate real world cases
+
+name: End-to-end Testing
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+
+  test:
+    name: End to end testing
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        rq-version: ["1.15", "1.16", "2.0", "2.1.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package
+        run: |
+          pip install -r requirements/pkg-requirements.txt
+          pip install -r requirements/test-requirements.txt
+          pip install -Iv rq==${{ matrix.rq-version }}
+      - name: Launch Redis, OpenTelemetry Collector and Jaeger
+        run: |
+          docker compose -f tests/e2e_test/env_setup/docker-compose.yaml up -d --wait
+      - name: Run tests
+        run: |
+          python -m tests.e2e_test.simulator.worker &
+          WORKER_PID=$!
+          echo "WORKER_PID=$!" >> $GITHUB_ENV
+          pytest --cov=opentelemetry_instrumentation_rq tests/e2e_test
+      - name: Shutdown Worker, Redis, OpenTelemetry Collector and Jaeger
+        if: ${{ always() }}
+        run: |
+          docker compose -f tests/e2e_test/env_setup/docker-compose.yaml down --remove-orphans
+          ps aux | grep $WORKER_PID
+          kill $WORKER_PID
+          ps aux | grep $WORKER_PID
