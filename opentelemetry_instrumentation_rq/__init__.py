@@ -57,6 +57,22 @@ class RQInstrumentor(BaseInstrumentor):
             ),
         )
 
+        wrap_function_wrapper(
+            "rq.queue",
+            "Queue.setup_dependencies",
+            TraceInstrumentWrapper(
+                span_kind=trace.SpanKind.PRODUCER,
+                operation_type=MessagingOperationTypeValues.CREATE.value,
+                operation_name="setup dependencies",
+                should_propagate=True,
+                should_flush=False,
+                instance_info=utils.get_instance_info(utils.RQElementName.QUEUE),
+                argument_info_list=[
+                    utils.get_argument_info(utils.RQElementName.JOB, 0)
+                ],
+            ),
+        )
+
         # Instrumentation for task consumer
         wrap_function_wrapper(
             "rq.worker",

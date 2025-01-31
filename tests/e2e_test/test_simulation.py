@@ -19,6 +19,7 @@ from opentelemetry.test.test_base import TestBase
 from pydantic import BaseModel
 from rq import Callback, Queue
 from rq.command import send_stop_job_command
+from rq.job import Dependency
 
 from opentelemetry_instrumentation_rq import rq_attributes
 from tests import tasks
@@ -36,6 +37,7 @@ class ExpectSpan(BaseModel):
     kind: trace.SpanKind
     status: trace.StatusCode
     attributes: Dict
+    links_count: int = 0
 
 
 class TestCase(BaseModel):
@@ -677,6 +679,140 @@ def get_scheduler_usage_enqueue_at() -> TestCase:  # pylint: disable=line-too-lo
     )
 
 
+def get_span_link_usage_job_dependencies() -> TestCase:  # pylint: disable=line-too-long
+    """Generate test case for Span link usage: linking job dependencies"""
+
+    def enqueue(queue: Queue):
+        tracer = trace.get_tracer("opentelemetry_instrumentation_rq.instrumentor")
+
+        # Since enqueuing both parent and child job will create two traces
+        # We would like to wrapped it as one, for convenience to adopt e2e test
+        with tracer.start_as_current_span(name="wrapped_span") as span:
+            parent = queue.enqueue(tasks.task_normal)
+
+            # Avoid the order of span start timestamp in an undetermined order
+            # TODO: Consider to rewrite the expected span list using a tree rather than list
+            time.sleep(1)
+            parent_dep = Dependency(jobs=[parent])
+            queue.enqueue(tasks.task_normal, depends_on=parent_dep)
+
+            span.set_status(trace.Status(trace.StatusCode.OK))
+
+    return TestCase(
+        name="Span link usage: depends_on",
+        description="Span link from child to parent job",
+        producer_call=enqueue,
+        expect_span_list=[
+            ExpectSpan(
+                name="wrapped_span",
+                kind=trace.SpanKind.INTERNAL,
+                status=trace.StatusCode.OK,
+                attributes={},
+            ),
+            ExpectSpan(
+                name=f"publish {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.SEND.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "publish",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"consume {QUEUE_NAME}",
+                kind=trace.SpanKind.CONSUMER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "consume",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: WORKER_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name="perform",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "perform",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"handle_job_success {QUEUE_NAME}",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_success",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"setup dependencies {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.CREATE.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "setup dependencies",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+                links_count=1,
+            ),
+            ExpectSpan(
+                name=f"publish {QUEUE_NAME}",
+                kind=trace.SpanKind.PRODUCER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.SEND.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "publish",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"consume {QUEUE_NAME}",
+                kind=trace.SpanKind.CONSUMER,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "consume",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    messaging_attributes.MESSAGING_CONSUMER_GROUP_NAME: WORKER_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name="perform",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "perform",
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+            ExpectSpan(
+                name=f"handle_job_success {QUEUE_NAME}",
+                kind=trace.SpanKind.CLIENT,
+                status=trace.StatusCode.OK,
+                attributes={
+                    messaging_attributes.MESSAGING_OPERATION_TYPE: MessagingOperationTypeValues.PROCESS.value,
+                    messaging_attributes.MESSAGING_OPERATION_NAME: "handle_job_success",
+                    messaging_attributes.MESSAGING_DESTINATION_NAME: QUEUE_NAME,
+                    rq_attributes.JOB_FUNCTION: "tests.tasks.task_normal",
+                },
+            ),
+        ],
+    )
+
+
 TEST_CASES: List[TestCase] = [
     get_basic_usage_task_normal_case(),
     get_basic_usage_task_exception_case(),
@@ -687,6 +823,7 @@ TEST_CASES: List[TestCase] = [
     get_callback_usage_stopped_callback(),
     get_scheduler_usage_enqueue_in(),
     get_scheduler_usage_enqueue_at(),
+    get_span_link_usage_job_dependencies(),
 ]
 
 
@@ -784,5 +921,12 @@ class TestExpectSpanInfo(TestBase):
                     }.items(),
                     msg="Failed test case: {}, expect span contains attributes: {}, got: {}".format(
                         test_case.name, expect.attributes, actual.attributes
+                    ),
+                )
+                self.assertEqual(
+                    expect.links_count,
+                    len(actual.links),
+                    msg="Failed test case: {}, expect span has {} links, got {}".format(
+                        test_case.name, expect.links_count, len(actual.links)
                     ),
                 )
