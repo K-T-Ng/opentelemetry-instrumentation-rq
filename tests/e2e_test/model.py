@@ -30,8 +30,8 @@ class V1KeyValue(BaseModel):
 
 
 class V1SpanLink(BaseModel):
-    trace_id: str = Field(alias="traceId")
-    span_id: str = Field(alias="span_id")
+    trace_id: str = Field(alias="traceId", default="")
+    span_id: str = Field(alias="span_id", default="")
     attributes: List[V1KeyValue] = []
 
 
