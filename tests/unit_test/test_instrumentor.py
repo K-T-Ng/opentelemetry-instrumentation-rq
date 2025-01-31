@@ -9,7 +9,8 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import Span
 from opentelemetry.semconv._incubating.attributes import messaging_attributes
 from opentelemetry.test.test_base import TestBase
-from rq.job import Job
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from rq.job import Dependency, Job
 from rq.queue import Queue
 from rq.worker import Worker
 
@@ -343,6 +344,45 @@ class TestTraceInstrumentWrapper(TestBase):
                         test_case.name, test_case.expected_return, actual_return
                     ),
                 )
+
+    def test_link_job_dependencies(self):
+        """Test case for adding span link on job with dependencies"""
+        tracer = trace.get_tracer(__name__)
+        wrapper = wrapper = instrumentor.TraceInstrumentWrapper(
+            span_kind="producer",
+            operation_type="create",
+            operation_name="setup dependencies",
+            should_propagate=Any,
+            should_flush=Any,
+            instance_info=Any,
+            argument_info_list=Any,
+        )
+
+        # Create parent
+        parent = Job.create(func=print, connection=self.fakeredis)
+        with tracer.start_as_current_span("parent-span") as parent_span:
+            TraceContextTextMapPropagator().inject(parent.meta)
+
+        # Create child
+        dependency = Dependency(jobs=[parent])
+        child = Job.create(func=print, connection=self.fakeredis, depends_on=dependency)
+        with tracer.start_as_current_span("child-span") as child_span, mock.patch(
+            "rq.job.Job.fetch_dependencies", side_effect=[[parent]]
+        ):
+            wrapper.link_job_dependencies(child, child_span)
+
+        self.assertEqual(
+            len(child_span._links),
+            1,
+            msg="Error when checking span link quantity, expected: 1, got: {}".format(
+                len(child_span._links)
+            ),
+        )
+        self.assertEqual(
+            parent_span.context.span_id,
+            child_span._links[0].context.span_id,
+            msg="Error when testing span link destination on job dependencies",
+        )
 
     def test_call(self):
         """Test __call__ method for `TraceInstrumentWrapper`"""

@@ -29,6 +29,12 @@ class V1KeyValue(BaseModel):
     value: Any
 
 
+class V1SpanLink(BaseModel):
+    trace_id: str = Field(alias="traceId")
+    span_id: str = Field(alias="span_id")
+    attributes: List[V1KeyValue] = []
+
+
 class V1Span(BaseModel):
     trace_id: str = Field(alias="traceId")
     span_id: str = Field(alias="spanId")
@@ -38,6 +44,7 @@ class V1Span(BaseModel):
     start_time_unix_nano: int = Field(alias="startTimeUnixNano")
     end_time_unix_nano: int = Field(alias="endTimeUnixNano")
     attributes: List[V1KeyValue] = []
+    links: List[V1SpanLink] = []
     status: V1Status
 
     class Config:
