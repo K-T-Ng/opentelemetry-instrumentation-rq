@@ -175,7 +175,7 @@ class TraceInstrumentWrapper:
         span_context_manager = self.tracer.start_as_current_span(
             name=span_name,
             kind=self.span_kind,
-            context=parent_context,
+            context=parent_context if parent_context else None,
         )
 
         # Span record
