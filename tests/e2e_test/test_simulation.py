@@ -851,12 +851,6 @@ class TestExpectSpanInfo(TestBase):
         )
 
         response_json = response.json()
-
-        import json
-
-        with open("test.json", "w") as f:
-            f.write(json.dumps(response_json))
-
         trace_data = V1TraceData.model_validate(response_json.get("result"))
         response_spans = trace_data.resource_spans
 
