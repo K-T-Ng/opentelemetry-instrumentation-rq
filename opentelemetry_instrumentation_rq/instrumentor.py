@@ -133,6 +133,17 @@ class TraceInstrumentWrapper:
 
         return rq_input
 
+    def link_job_dependencies(self, job: Job, span: trace.Span):
+        """For `rq.queue.Queue.setup_dependencies` only
+
+        Creating span links for job dependencies
+        """
+        dependencies = job.fetch_dependencies()
+        for dependent in dependencies:
+            dep_ctx = TraceContextTextMapPropagator().extract(carrier=dependent.meta)
+            dep_span_ctx = trace.get_current_span(dep_ctx).get_span_context()
+            span.add_link(dep_span_ctx)
+
     def __call__(self, func: Callable, instance: Any, args: Tuple, kwargs: Dict):
         """Trace instrumentaion"""
         # Extract RQ elements
@@ -145,10 +156,14 @@ class TraceInstrumentWrapper:
         # Early return if we can't
         # (1) Get Job Element
         # (2) When handling the outer layer of callback hook, but no such hook user given
-        if not job or (
-            "callback" in self.operation_name
-            and not getattr(instance, self.operation_name)
-        ):
+        # (3) When Queue setting up job depenencies and there is no any job depends on
+        callback_instrument_skip = "callback" in self.operation_name and not getattr(
+            instance, self.operation_name
+        )
+        setup_dependencies_skip = (
+            self.operation_name == "setup dependencies" and not len(job._dependency_ids)
+        )
+        if not job or callback_instrument_skip or setup_dependencies_skip:
             return func(*args, **kwargs)
 
         # Prepare metadata and parent context
@@ -158,11 +173,15 @@ class TraceInstrumentWrapper:
 
         parent_context: trace.Context = self.propagator.extract(carrier=job.meta)
         span_context_manager = self.tracer.start_as_current_span(
-            name=span_name, kind=self.span_kind, context=parent_context
+            name=span_name,
+            kind=self.span_kind,
+            context=parent_context if parent_context else None,
         )
 
         # Span record
         span = span_context_manager.__enter__()
+        if self.operation_name == "setup dependencies":
+            self.link_job_dependencies(job, span)
         if self.should_propagate:
             self.propagator.inject(job.meta)
         if span.is_recording():
