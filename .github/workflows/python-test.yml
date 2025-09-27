@@ -22,13 +22,13 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         rq-version: ["1.15", "1.16", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
-      exclude:
-        - python-version: "3.8"
-          rq-version: "2.4"
-        - python-version: "3.8"
-          rq-version: "2.5"
-        - python-version: "3.8"
-          rq-version: "2.6"
+        exclude:
+          - python-version: "3.8"
+            rq-version: "2.4"
+          - python-version: "3.8"
+            rq-version: "2.5"
+          - python-version: "3.8"
+            rq-version: "2.6"
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
