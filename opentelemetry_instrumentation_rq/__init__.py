@@ -21,7 +21,7 @@ class RQInstrumentor(BaseInstrumentor):
     """An instrumentor of rq"""
 
     def instrumentation_dependencies(self) -> Collection[str]:
-        return ("rq >= 2.0.0",)
+        return ("rq >= 1.15",)
 
     def _instrument(self, **kwargs):
         # Instrumentation for task producer
