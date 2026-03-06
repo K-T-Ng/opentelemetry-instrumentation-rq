@@ -32,3 +32,11 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/K-T-Ng/opentelemetry-instrumentation-rq"
 Issues = "https://github.com/K-T-Ng/opentelemetry-instrumentation-rq/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opentelemetry_instrumentation_rq"]
+
+[tool.hatch.build]
+include = [
+    "src/opentelemetry_instrumentation_rq/py.typed"
+]
