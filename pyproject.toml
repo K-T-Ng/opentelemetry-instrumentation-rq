@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "opentelemetry_instrumentation_rq"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
   { name="K-T-Ng", email="l19so18h13k10@gmail.com" },
 ]
@@ -32,3 +32,11 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/K-T-Ng/opentelemetry-instrumentation-rq"
 Issues = "https://github.com/K-T-Ng/opentelemetry-instrumentation-rq/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opentelemetry_instrumentation_rq"]
+
+[tool.hatch.build]
+include = [
+    "src/opentelemetry_instrumentation_rq/py.typed"
+]
